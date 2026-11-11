@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/quickfiles"]
+members = ["crates/quickfiles", "crates/quickfiles-core"]
 
 [workspace.dependencies]
 eframe = { version = "0.37", default-features = false, features = [

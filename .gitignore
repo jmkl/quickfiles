@@ -1,1 +1,7 @@
 target/
+@gmail.com
+*.patch
+*.zip
+rustfmt.toml
+tools
+zip.nu

@@ -25,6 +25,8 @@ pub struct Panel {
 
 pub struct Regions {
     pub title: Rect,
+    /// Zero-height unless there are several tabs.
+    pub tabs: Rect,
     pub sidebar: Option<Panel>,
     pub toolbar: Rect,
     pub header: Rect,
@@ -33,7 +35,7 @@ pub struct Regions {
 }
 
 impl Regions {
-    pub fn compute(full: Rect, m: &Metrics, left: Slide, right: Slide) -> Self {
+    pub fn compute(full: Rect, m: &Metrics, left: Slide, right: Slide, tabs_h: f32) -> Self {
         let title = Rect::from_min_size(full.min, vec2(full.width(), m.title_h));
         let body_top = title.bottom();
         let body_h = full.bottom() - body_top;
@@ -46,7 +48,10 @@ impl Regions {
         let main_right = full.right() - right_vis;
 
         let sidebar = (left_vis >= 1.0).then(|| Panel {
-            visible: Rect::from_min_max(pos2(full.left(), body_top), pos2(main_left, full.bottom())),
+            visible: Rect::from_min_max(
+                pos2(full.left(), body_top),
+                pos2(main_left, full.bottom()),
+            ),
             layout: Rect::from_min_size(
                 pos2(main_left - left.width, body_top),
                 vec2(left.width, body_h),
@@ -57,9 +62,13 @@ impl Regions {
             layout: Rect::from_min_size(pos2(main_right, body_top), vec2(right.width, body_h)),
         });
 
-        let toolbar = Rect::from_min_max(
+        let tabs = Rect::from_min_max(
             pos2(main_left, body_top),
-            pos2(main_right, body_top + m.toolbar_h),
+            pos2(main_right, body_top + tabs_h),
+        );
+        let toolbar = Rect::from_min_max(
+            pos2(main_left, tabs.bottom()),
+            pos2(main_right, tabs.bottom() + m.toolbar_h),
         );
         let header = Rect::from_min_max(
             pos2(main_left, toolbar.bottom()),
@@ -72,6 +81,7 @@ impl Regions {
 
         Self {
             title,
+            tabs,
             sidebar,
             toolbar,
             header,

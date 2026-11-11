@@ -5,8 +5,6 @@ use eframe::egui::{
     StrokeKind, TextEdit, Ui, UiBuilder, ViewportCommand, pos2, vec2,
 };
 
-use crate::model;
-
 use super::{
     Action, Cx,
     icons::{self, Icon},
@@ -88,10 +86,30 @@ pub fn show(ui: &mut Ui, cx: &mut Cx<'_>, r: Rect) {
     };
     let icon_cy = r.top() + 16.0;
 
-    if window_button(ui, th, button(2.0), Icon::Minimize, "win_min", pal.hover, icon_cy).clicked() {
+    if window_button(
+        ui,
+        th,
+        button(2.0),
+        Icon::Minimize,
+        "win_min",
+        pal.hover,
+        icon_cy,
+    )
+    .clicked()
+    {
         ctx.send_viewport_cmd(ViewportCommand::Minimized(true));
     }
-    if window_button(ui, th, button(1.0), Icon::Maximize, "win_max", pal.hover, icon_cy).clicked() {
+    if window_button(
+        ui,
+        th,
+        button(1.0),
+        Icon::Maximize,
+        "win_max",
+        pal.hover,
+        icon_cy,
+    )
+    .clicked()
+    {
         let maximized = ctx.input(|i| i.viewport().maximized.unwrap_or(false));
         ctx.send_viewport_cmd(ViewportCommand::Maximized(!maximized));
     }
@@ -159,25 +177,36 @@ fn search_box(ui: &mut Ui, cx: &mut Cx<'_>, rect: Rect) {
         pal,
         Icon::Search,
         pos2(rect.left() + 15.0, rect.center().y),
-        if focused { pal.text_section } else { pal.text_dim },
+        if focused {
+            pal.text_section
+        } else {
+            pal.text_dim
+        },
         0.75,
     );
 
-    let has_text = !cx.state.filter.is_empty();
-    let clear_w = if has_text { 26.0 } else { 0.0 };
+    // Right side of the pill: regex toggle, then the x button.
+    let regex_on = cx.core.nav().query().regex;
+    let in_folder = cx.core.nav().location().is_some();
+    let show_clear = !cx.state.search.is_empty() || in_folder;
+    let clear_w = if show_clear { 26.0 } else { 0.0 };
+    let regex_w = 28.0;
 
     let edit_rect = Rect::from_min_max(
         pos2(rect.left() + 29.0, rect.top() + 2.0),
-        pos2(rect.right() - 12.0 - clear_w, rect.bottom() - 2.0),
+        pos2(rect.right() - 12.0 - clear_w - regex_w, rect.bottom() - 2.0),
     );
-    let hint = format!("Search in {}", model::display_name(&cx.state.path));
+    let hint = match cx.core.nav().location() {
+        Some(p) => format!("Search in {}", quickfiles_core::display_name(p)),
+        None => "Search everything…".to_owned(),
+    };
     let mut edit_ui = ui.new_child(
         UiBuilder::new()
             .max_rect(edit_rect)
             .layout(Layout::left_to_right(Align::Center)),
     );
     let response = edit_ui.add(
-        TextEdit::singleline(&mut cx.state.filter)
+        TextEdit::singleline(&mut cx.state.search)
             .id(id)
             .hint_text(RichText::new(hint).color(pal.text_dim))
             .frame(Frame::NONE)
@@ -185,17 +214,43 @@ fn search_box(ui: &mut Ui, cx: &mut Cx<'_>, rect: Rect) {
             .align(Align2::CENTER_CENTER),
     );
     if response.changed() {
-        cx.state.rebuild_view();
+        cx.core.set_text(&cx.state.search);
     }
-    // Esc inside the box clears it and hands focus back to the list.
+    // Esc inside the box clears the text (the scope stays) and hands focus back to the list.
     if response.has_focus() && ctx.input(|i| i.key_pressed(Key::Escape)) {
-        cx.state.filter.clear();
-        cx.state.rebuild_view();
+        cx.state.search.clear();
+        cx.core.escape();
         response.surrender_focus();
     }
 
-    // Clear button (only while there is text).
-    if has_text {
+    // Regex toggle: ".*", lit while on.
+    let regex_rect = Rect::from_center_size(
+        pos2(rect.right() - 17.0 - clear_w - 6.0 - 0.0, rect.center().y),
+        vec2(24.0, 18.0),
+    );
+    let regex_hit = hit(ui, regex_rect, "search_regex", Sense::click());
+    if regex_on {
+        p.rect_filled(regex_rect, 4.0, pal.accent.gamma_multiply(0.3));
+    } else if regex_hit.hovered() {
+        p.rect_filled(regex_rect, 4.0, pal.hover);
+    }
+    p.text(
+        regex_rect.center(),
+        Align2::CENTER_CENTER,
+        ".*",
+        th.mono.clone(),
+        if regex_on {
+            pal.icon_strong
+        } else {
+            pal.text_dim
+        },
+    );
+    if regex_hit.clicked() {
+        cx.actions.push(Action::ToggleRegex);
+    }
+
+    // x: clear the text and search everything again.
+    if show_clear {
         let center = pos2(rect.right() - 17.0, rect.center().y);
         let clear_rect = Rect::from_center_size(center, vec2(18.0, 18.0));
         let clear = hit(ui, clear_rect, "search_clear", Sense::click());
@@ -207,12 +262,15 @@ fn search_box(ui: &mut Ui, cx: &mut Cx<'_>, rect: Rect) {
             pal,
             Icon::Close,
             center,
-            if clear.hovered() { pal.icon_strong } else { pal.text_section },
+            if clear.hovered() {
+                pal.icon_strong
+            } else {
+                pal.text_section
+            },
             0.8,
         );
         if clear.clicked() {
-            cx.state.filter.clear();
-            cx.state.rebuild_view();
+            cx.actions.push(Action::ClearSearch);
         }
     }
 }

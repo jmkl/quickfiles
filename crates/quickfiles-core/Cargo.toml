@@ -1,0 +1,28 @@
+[package]
+name = "quickfiles-core"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+dirs = "6"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp"] }
+jpeg-decoder = { version = "0.3", default-features = false }
+notify = "8"
+open = "5"
+rusqlite = { version = "0.32", features = ["bundled"] }
+trash = "5"
+
+[target.'cfg(windows)'.dependencies]
+everything-ipc = "0.1.4"
+windows = { version = "0.62", features = [
+  "Win32_Foundation",
+  "Win32_Graphics_Gdi",
+  "Win32_Storage_FileSystem",
+  "Win32_System_Com",
+  "Win32_System_DataExchange",
+  "Win32_System_Memory",
+  "Win32_System_Ole",
+  "Win32_UI_Shell",
+  "Win32_UI_WindowsAndMessaging",
+] }

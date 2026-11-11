@@ -1,19 +1,16 @@
 //! Left sidebar: collapsible Recents / Bookmarks / Storage / Places.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use eframe::egui::{Rect, ScrollArea, Sense, Stroke, StrokeKind, Ui, UiBuilder, pos2, vec2};
+use quickfiles_core::{DriveInfo, display_name};
 
 use super::{
-    Action, Cx,
+    Action, Cx, dnd,
     icons::{self, Icon},
-    widgets::{text_left, vline},
+    widgets::{click_sense, text_left, vline},
 };
-use crate::{
-    data,
-    model::{DriveInfo, SideItem, SideKind},
-    theme::Theme,
-};
+use crate::theme::Theme;
 
 pub fn show(ui: &mut Ui, cx: &mut Cx<'_>, r: Rect) {
     let pal = &cx.theme.palette;
@@ -35,6 +32,16 @@ pub fn show(ui: &mut Ui, cx: &mut Cx<'_>, r: Rect) {
 fn sections(ui: &mut Ui, cx: &mut Cx<'_>) {
     let th = cx.theme;
     let gap = th.metrics.side_section_gap;
+    let data = cx.core.data();
+    let drives = cx.core.drives();
+    let places: Vec<(String, PathBuf)> = std::iter::once(("This PC".to_owned(), PathBuf::new()))
+        .chain(
+            cx.core
+                .places()
+                .iter()
+                .map(|p| (p.label.clone(), p.path.clone())),
+        )
+        .collect();
 
     ui.add_space(5.0);
     if section_header(
@@ -44,8 +51,11 @@ fn sections(ui: &mut Ui, cx: &mut Cx<'_>) {
         "Recents",
         &mut cx.state.section_open[0],
     ) {
-        for item in &data::RECENTS {
-            side_item(ui, cx, item);
+        if data.recents.is_empty() {
+            hint(ui, cx, "Folders you open show up here");
+        }
+        for path in data.recents.iter().take(10) {
+            side_item(ui, cx, Icon::Folder, &display_name(path), path, false);
         }
     }
 
@@ -57,8 +67,11 @@ fn sections(ui: &mut Ui, cx: &mut Cx<'_>) {
         "Bookmarks",
         &mut cx.state.section_open[1],
     ) {
-        for item in &data::BOOKMARKS {
-            side_item(ui, cx, item);
+        if data.bookmarks.is_empty() {
+            hint(ui, cx, "Bookmark the folder you are in");
+        }
+        for b in &data.bookmarks {
+            side_item(ui, cx, Icon::Folder, &b.label, &b.path, true);
         }
     }
 
@@ -70,18 +83,38 @@ fn sections(ui: &mut Ui, cx: &mut Cx<'_>) {
         "Storage",
         &mut cx.state.section_open[2],
     ) {
-        for drive in &data::DRIVES {
+        for drive in drives.iter() {
             drive_item(ui, cx, drive);
         }
     }
 
     ui.add_space(gap);
     if section_header(ui, th, Icon::Pin, "Places", &mut cx.state.section_open[3]) {
-        for item in &data::PLACES {
-            side_item(ui, cx, item);
+        for (label, path) in &places {
+            let icon = if path.as_os_str().is_empty() {
+                Icon::ThisPc
+            } else {
+                Icon::Folder
+            };
+            side_item(ui, cx, icon, label, path, false);
         }
     }
     ui.add_space(gap);
+}
+
+fn hint(ui: &mut Ui, cx: &Cx<'_>, text: &str) {
+    let m = &cx.theme.metrics;
+    let (rect, _) =
+        ui.allocate_exact_size(vec2(ui.available_width(), m.side_row_h), Sense::hover());
+    text_left(
+        ui.painter(),
+        rect.left() + m.side_text_x,
+        rect.center().y,
+        text,
+        &cx.theme.font,
+        cx.theme.palette.text_dim,
+        rect.width() - m.side_text_x - 10.0,
+    );
 }
 
 /// Returns whether the section is open (after handling a click on the header).
@@ -135,22 +168,24 @@ fn section_header(ui: &mut Ui, th: &Theme, icon: Icon, title: &str, open: &mut b
     *open
 }
 
-fn side_item(ui: &mut Ui, cx: &mut Cx<'_>, item: &SideItem) {
+fn side_item(ui: &mut Ui, cx: &mut Cx<'_>, icon: Icon, label: &str, path: &Path, removable: bool) {
     let th = cx.theme;
     let (pal, m) = (&th.palette, &th.metrics);
     let (rect, response) =
-        ui.allocate_exact_size(vec2(ui.available_width(), m.side_row_h), Sense::click());
+        ui.allocate_exact_size(vec2(ui.available_width(), m.side_row_h), click_sense(ui));
     let p = ui.painter();
     let cy = rect.center().y;
 
-    if response.hovered() {
+    let current = cx.core.nav().location().is_some_and(|l| l == path);
+    if current {
+        p.rect_filled(
+            rect.shrink2(vec2(4.0, 0.0)),
+            m.radius,
+            pal.accent.gamma_multiply(0.18),
+        );
+    } else if response.hovered() {
         p.rect_filled(rect.shrink2(vec2(4.0, 0.0)), m.radius, pal.hover);
     }
-    let icon = match item.kind {
-        SideKind::Folder => Icon::Folder,
-        SideKind::Drive => Icon::Drive,
-        SideKind::Pc => Icon::ThisPc,
-    };
     icons::paint(
         p,
         pal,
@@ -162,18 +197,18 @@ fn side_item(ui: &mut Ui, cx: &mut Cx<'_>, item: &SideItem) {
         p,
         rect.left() + m.side_text_x,
         cy,
-        item.label,
+        label,
         &th.font,
         pal.text,
-        rect.right() - rect.left() - m.side_text_x - 10.0,
+        rect.width() - m.side_text_x - 10.0,
     );
 
+    dnd::target(ui, cx, rect.shrink2(vec2(4.0, 0.0)), path);
     if response.clicked() {
-        let target = match item.kind {
-            SideKind::Pc => PathBuf::new(),
-            _ => PathBuf::from(item.label),
-        };
-        cx.actions.push(Action::Navigate(target));
+        cx.actions.push(Action::Navigate(path.to_owned()));
+    }
+    if removable && response.secondary_clicked() {
+        cx.actions.push(Action::RemoveBookmark(path.to_owned()));
     }
 }
 
@@ -182,7 +217,7 @@ fn drive_item(ui: &mut Ui, cx: &mut Cx<'_>, drive: &DriveInfo) {
     let th = cx.theme;
     let (pal, m) = (&th.palette, &th.metrics);
     let (rect, response) =
-        ui.allocate_exact_size(vec2(ui.available_width(), m.side_drive_h), Sense::click());
+        ui.allocate_exact_size(vec2(ui.available_width(), m.side_drive_h), click_sense(ui));
     let p = ui.painter();
 
     if response.hovered() {
@@ -206,7 +241,7 @@ fn drive_item(ui: &mut Ui, cx: &mut Cx<'_>, drive: &DriveInfo) {
         p,
         rect.left() + m.side_text_x,
         name_cy,
-        drive.label,
+        &drive.label,
         &th.font,
         pal.text,
         rect.width() - m.side_text_x - 26.0,
@@ -227,15 +262,18 @@ fn drive_item(ui: &mut Ui, cx: &mut Cx<'_>, drive: &DriveInfo) {
         bar.min,
         vec2(bar.width() * drive.used.clamp(0.0, 1.0), bar.height()),
     );
-    let color = if drive.nearly_full() {
-        pal.danger
-    } else {
-        pal.accent
-    };
-    p.rect_filled(filled, 1.0, color);
+    p.rect_filled(
+        filled,
+        1.0,
+        if drive.nearly_full() {
+            pal.danger
+        } else {
+            pal.accent
+        },
+    );
 
+    dnd::target(ui, cx, rect.shrink2(vec2(4.0, 0.0)), &drive.root);
     if response.clicked() {
-        cx.actions
-            .push(Action::Navigate(PathBuf::from(drive.label)));
+        cx.actions.push(Action::Navigate(drive.root.clone()));
     }
 }

@@ -14,10 +14,7 @@ pub fn show(ui: &mut Ui, full: Rect) {
     let ctx = ui.ctx().clone();
     let (maximized, fullscreen) = ctx.input(|i| {
         let v = i.viewport();
-        (
-            v.maximized.unwrap_or(false),
-            v.fullscreen.unwrap_or(false),
-        )
+        (v.maximized.unwrap_or(false), v.fullscreen.unwrap_or(false))
     });
     if maximized || fullscreen {
         return;

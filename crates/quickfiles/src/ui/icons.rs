@@ -5,7 +5,9 @@
 
 use eframe::egui::{Color32, Painter, Pos2, Rect, Shape, Stroke, StrokeKind, vec2};
 
-use crate::{model::EntryKind, theme::Palette};
+use quickfiles_core::Category;
+
+use crate::theme::Palette;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Icon {
@@ -43,13 +45,14 @@ pub enum Icon {
 }
 
 impl Icon {
-    pub fn for_kind(kind: EntryKind) -> Self {
-        match kind {
-            EntryKind::Folder => Self::Folder,
-            EntryKind::Html => Self::FileHtml,
-            EntryKind::Script => Self::FileJs,
-            EntryKind::Json => Self::FileJson,
-            EntryKind::Other => Self::FileGeneric,
+    pub fn for_category(category: Category) -> Self {
+        match category {
+            Category::Folder => Self::Folder,
+            Category::Drive => Self::Drive,
+            Category::Html => Self::FileHtml,
+            Category::Script | Category::Code => Self::FileJs,
+            Category::Json => Self::FileJson,
+            _ => Self::FileGeneric,
         }
     }
 }

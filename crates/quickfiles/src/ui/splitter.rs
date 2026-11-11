@@ -9,7 +9,14 @@ use super::{
 };
 use crate::state::{PREVIEW_MAX_W, PREVIEW_MIN_W, SIDEBAR_MAX_W, SIDEBAR_MIN_W};
 
-pub fn show(ui: &mut Ui, cx: &mut Cx<'_>, full: Rect, regions: &Regions, left_ready: bool, right_ready: bool) {
+pub fn show(
+    ui: &mut Ui,
+    cx: &mut Cx<'_>,
+    full: Rect,
+    regions: &Regions,
+    left_ready: bool,
+    right_ready: bool,
+) {
     let top = regions.title.bottom();
     let bottom = full.bottom();
     let left_vis = regions.sidebar.map_or(0.0, |p| p.visible.width());

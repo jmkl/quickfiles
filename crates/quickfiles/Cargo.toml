@@ -4,7 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-eframe = {workspace = true}
+eframe = { workspace = true }
+quickfiles-core = { path = "../quickfiles-core" }
+
 [profile.dev]
 opt-level = 1
 
@@ -17,3 +19,8 @@ lto = "fat"
 codegen-units = 1
 panic = "abort"
 strip = true
+
+
+[[bin]]
+name = "qf"
+path = "src/main.rs"

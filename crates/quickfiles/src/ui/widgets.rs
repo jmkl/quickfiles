@@ -2,8 +2,8 @@
 use std::{fmt::Debug, hash::Hash, sync::Arc};
 
 use eframe::egui::{
-    Color32, FontId, Galley, Painter, Pos2, Rect, Response, Sense, Ui, Vec2, pos2, text::LayoutJob,
-    vec2,
+    Color32, Context, FontId, Galley, Id, Painter, Pos2, Rect, Response, Sense, Ui, Vec2, pos2,
+    text::LayoutJob, vec2,
 };
 
 use super::icons::{self, Icon};
@@ -27,7 +27,41 @@ pub fn vline(p: &Painter, x: f32, y0: f32, y1: f32, color: Color32) {
     );
 }
 
+/// While a menu is open the rest of the UI must not react to clicks (see `ui::draw`).
+pub fn modal(ui: &Ui) -> bool {
+    ui.ctx()
+        .data(|d| d.get_temp::<bool>(Id::new("qf_modal")))
+        .unwrap_or(false)
+}
+
+pub fn set_modal(ctx: &Context, on: bool) {
+    ctx.data_mut(|d| d.insert_temp(Id::new("qf_modal"), on));
+}
+
+/// `Sense::click()`, or hover-only while a menu is open.
+pub fn click_sense(ui: &Ui) -> Sense {
+    if modal(ui) {
+        Sense::hover()
+    } else {
+        Sense::click()
+    }
+}
+
+/// Click and drag (rows that can be dragged), or hover-only while a menu is open.
+pub fn drag_sense(ui: &Ui) -> Sense {
+    if modal(ui) {
+        Sense::hover()
+    } else {
+        Sense::click_and_drag()
+    }
+}
+
 pub fn hit(ui: &Ui, rect: Rect, salt: impl Hash + Debug, sense: Sense) -> Response {
+    let sense = if modal(ui) && sense != Sense::hover() {
+        Sense::hover()
+    } else {
+        sense
+    };
     ui.interact(rect, ui.id().with(salt), sense)
 }
 
