@@ -21,7 +21,7 @@ pub fn show(ui: &mut Ui, cx: &mut Cx<'_>, r: Rect) {
     let p = ui.painter().clone();
     let ctx = ui.ctx().clone();
 
-    p.rect_filled(r, 0.0, pal.chrome);
+    p.rect_filled(r, 0.0, pal.surface);
     hline(&p, r.bottom() - 1.0, r.left(), r.right(), pal.border);
 
     // Whole bar drags the window; double-click toggles maximise. Registered first so the
@@ -119,12 +119,12 @@ pub fn show(ui: &mut Ui, cx: &mut Cx<'_>, r: Rect) {
         button(0.0),
         Icon::Close,
         "win_close",
-        pal.close_hover,
+        pal.window_close,
         icon_cy,
     )
     .clicked()
     {
-        ctx.send_viewport_cmd(ViewportCommand::Close);
+        cx.actions.push(Action::CloseWindow);
     }
 
     // Search box: centred in the window when there is room, otherwise squeezed between the
@@ -162,11 +162,11 @@ fn search_box(ui: &mut Ui, cx: &mut Cx<'_>, rect: Rect) {
 
     let focused = ctx.memory(|mem| mem.has_focus(id));
     let radius = rect.height() * 0.5;
-    p.rect_filled(rect, radius, pal.main);
+    p.rect_filled(rect, radius, pal.background);
     let edge = if focused {
         pal.accent
     } else if pill.hovered() {
-        pal.track_border
+        pal.control_border
     } else {
         pal.border
     };
@@ -178,9 +178,9 @@ fn search_box(ui: &mut Ui, cx: &mut Cx<'_>, rect: Rect) {
         Icon::Search,
         pos2(rect.left() + 15.0, rect.center().y),
         if focused {
-            pal.text_section
+            pal.text_secondary
         } else {
-            pal.text_dim
+            pal.text_muted
         },
         0.75,
     );
@@ -208,7 +208,7 @@ fn search_box(ui: &mut Ui, cx: &mut Cx<'_>, rect: Rect) {
     let response = edit_ui.add(
         TextEdit::singleline(&mut cx.state.search)
             .id(id)
-            .hint_text(RichText::new(hint).color(pal.text_dim))
+            .hint_text(RichText::new(hint).color(pal.text_muted))
             .frame(Frame::NONE)
             .desired_width(edit_rect.width())
             .align(Align2::CENTER_CENTER),
@@ -240,9 +240,9 @@ fn search_box(ui: &mut Ui, cx: &mut Cx<'_>, rect: Rect) {
         ".*",
         th.mono.clone(),
         if regex_on {
-            pal.icon_strong
+            pal.icon_active
         } else {
-            pal.text_dim
+            pal.text_muted
         },
     );
     if regex_hit.clicked() {
@@ -263,9 +263,9 @@ fn search_box(ui: &mut Ui, cx: &mut Cx<'_>, rect: Rect) {
             Icon::Close,
             center,
             if clear.hovered() {
-                pal.icon_strong
+                pal.icon_active
             } else {
-                pal.text_section
+                pal.text_secondary
             },
             0.8,
         );
@@ -290,7 +290,7 @@ fn window_button(
     if response.hovered() {
         p.rect_filled(rect, 0.0, hover_fill);
     }
-    let tint = if response.hovered() && hover_fill == pal.close_hover {
+    let tint = if response.hovered() && hover_fill == pal.window_close {
         Color32::WHITE
     } else {
         pal.icon

@@ -3,9 +3,20 @@
 use std::{collections::HashSet, sync::Arc};
 
 use eframe::egui;
-use quickfiles_core::{Config, Conflict, Core, JobState, Kind, key_of_path, sys, sys::WindowState};
+use quickfiles_core::{
+    Config, Conflict, Core, JobState, Kind,
+    dropdata::Dropped,
+    global_hotkey::{Combo, GlobalHotkey},
+    key_of_path,
+    ole_drag::Outcome,
+    ole_drop::DropTarget,
+    sys,
+    sys::WindowState,
+    tray::Tray,
+};
 
 use crate::{
+    config,
     hotkeys::Hotkeys,
     state::{Rename, State},
     theme::Theme,
@@ -18,33 +29,144 @@ pub struct App {
     core: Core,
     tex: Tex,
     hotkeys: Hotkeys,
+    global: GlobalHotkey,
+    /// Notification-area icon: closing the window hides it there instead of quitting.
+    tray: Tray,
+    /// Receives files and browser images dragged onto the window (`None`: egui's own events).
+    drop_target: Option<DropTarget>,
     saved_widths: (f32, f32),
     saved_cols: crate::state::ColW,
     window: WindowState,
     ctx: egui::Context,
 }
 
+/// Everything read from `config.conf`.
+struct Loaded {
+    hotkeys: Hotkeys,
+    theme: Theme,
+    global: Option<Combo>,
+    problems: Vec<String>,
+}
+
+/// Default for `[general] global_hotkey`.
+const GLOBAL_DEFAULT: &str = "Ctrl+Alt+Space";
+
+/// Reads `config.conf` (writing a commented one the first time). Never fails: a bad line is
+/// skipped and listed in `problems`.
+fn load_config() -> Loaded {
+    if sys::read_config(config::FILE).is_none() {
+        // Keep bindings from the old hotkeys.conf (active lines only).
+        let legacy: Vec<String> = sys::read_config("hotkeys.conf")
+            .unwrap_or_default()
+            .lines()
+            .map(str::trim)
+            .filter(|l| !l.is_empty() && !l.starts_with('#'))
+            .map(str::to_owned)
+            .collect();
+        let theme: Vec<(&str, String)> = Theme::dark()
+            .palette
+            .entries()
+            .into_iter()
+            .map(|(n, c)| (n, config::color_text(c.to_srgba_unmultiplied())))
+            .collect();
+        sys::write_config_if_missing(
+            config::FILE,
+            &config::template(
+                GLOBAL_DEFAULT,
+                &theme,
+                crate::hotkeys::DEFAULTS,
+                &crate::hotkeys::action_names(),
+                &legacy,
+            ),
+        );
+    }
+    let sections = config::parse(&sys::read_config(config::FILE).unwrap_or_default());
+    let mut problems = sections.errors.clone();
+
+    let (hotkeys, p) = Hotkeys::from_config(&sections.hotkeys);
+    problems.extend(p);
+    let (theme, p) = Theme::configured(&sections.theme, &sections.themes);
+    problems.extend(p);
+
+    let mut global = Combo::parse(GLOBAL_DEFAULT).ok();
+    for e in &sections.general {
+        match e.key.as_str() {
+            "global_hotkey" => {
+                if matches!(e.value.to_ascii_lowercase().as_str(), "none" | "off" | "") {
+                    global = None;
+                } else {
+                    match Combo::parse(&e.value) {
+                        Ok(c) => global = Some(c),
+                        Err(err) => {
+                            problems.push(format!("config line {}: global_hotkey: {err}", e.line))
+                        }
+                    }
+                }
+            }
+            other => problems.push(format!(
+                "config line {}: unknown setting \"{other}\"",
+                e.line
+            )),
+        }
+    }
+    Loaded {
+        hotkeys,
+        theme,
+        global,
+        problems,
+    }
+}
+
 impl App {
-    pub fn new(cc: &eframe::CreationContext<'_>, dummy: bool) -> Self {
-        let theme = Theme::dark();
+    /// Ctrl+Shift+R: apply `config.conf` again without restarting.
+    fn reload_config(&mut self) {
+        let l = load_config();
+        self.theme = l.theme;
+        self.theme.restyle(&self.ctx);
+        self.hotkeys = l.hotkeys;
+        self.state.help_rows = self.hotkeys.help_rows();
+        self.global.set(l.global);
+        match l.problems.first() {
+            None => self.state.say("Config reloaded"),
+            Some(first) => self.state.say(format!(
+                "Config reloaded with {} problem(s): {first}",
+                l.problems.len()
+            )),
+        }
+    }
+
+    pub fn new(
+        cc: &eframe::CreationContext<'_>,
+        dummy: bool,
+        start: Option<std::path::PathBuf>,
+    ) -> Self {
+        let loaded = load_config();
+        let theme = loaded.theme;
         theme.apply(&cc.egui_ctx);
 
         // Background threads wake the UI through this; the UI never polls.
         let ctx = cc.egui_ctx.clone();
-        let core = Core::start(Config {
+        let wake: quickfiles_core::Wake = Arc::new(move || ctx.request_repaint());
+        let drop_target = DropTarget::register("quickfiles", wake.clone());
+        let global = GlobalHotkey::start("quickfiles", wake.clone());
+        global.set(loaded.global);
+        let tray = Tray::start("quickfiles", wake.clone());
+        let mut core = Core::start(Config {
             dummy,
             data_dir: None,
-            wake: Arc::new(move || ctx.request_repaint()),
+            wake,
         });
+        // A folder given on the command line wins over the one restored from last time.
+        if let Some(dir) = start {
+            core.open_folder(dir);
+        }
         let state = State::new(&core.data());
         let widths = (state.left_w, state.preview_w);
 
-        // Hotkeys: built-in map plus the user's `hotkeys.conf` (a template is written once).
-        sys::write_config_if_missing("hotkeys.conf", &crate::hotkeys::config_template());
-        let (hotkeys, problems) =
-            Hotkeys::from_config(&sys::read_config("hotkeys.conf").unwrap_or_default());
+        let hotkeys = loaded.hotkeys;
         let mut state = state;
-        if let Some(first) = problems.first() {
+        state.help_rows = hotkeys.help_rows();
+        if let Some(first) = loaded.problems.first() {
             state.say(first.clone());
         }
         let saved_cols = state.col_w;
@@ -54,6 +176,9 @@ impl App {
             core,
             tex: Tex::new(),
             hotkeys,
+            global,
+            tray,
+            drop_target,
             saved_widths: widths,
             saved_cols,
             window: sys::load_window().unwrap_or(WindowState {
@@ -62,6 +187,58 @@ impl App {
                 maximized: false,
             }),
             ctx: cc.egui_ctx.clone(),
+        }
+    }
+
+    /// Where a drop from another program lands: the selected folder, else the open folder.
+    fn drop_destination(&self) -> Option<std::path::PathBuf> {
+        if let Some(e) = self.focused_entry()
+            && e.is_dir()
+            && self.state.selected.contains(&e.key)
+        {
+            return Some(e.path());
+        }
+        self.core
+            .nav()
+            .location()
+            .filter(|p| !p.as_os_str().is_empty())
+            .cloned()
+    }
+
+    /// Files are copied, an image address is downloaded; both run as jobs with progress.
+    fn handle_drop(&mut self, dropped: Dropped) {
+        // The folder the pointer was over when released wins over the selection.
+        let over = self.state.drop_over.clone();
+        let Some(dest) = over.or_else(|| self.drop_destination()) else {
+            self.state.say("Open a folder first, then drop");
+            return;
+        };
+        let name = quickfiles_core::display_name(&dest);
+        match dropped {
+            Dropped::Files(paths) => {
+                let (found, gone): (Vec<_>, Vec<_>) = paths.into_iter().partition(|p| p.exists());
+                if found.is_empty() {
+                    self.state.say("Those files are not available any more");
+                    return;
+                }
+                if !gone.is_empty() {
+                    self.state.say(format!(
+                        "{} item(s) could not be read and were skipped",
+                        gone.len()
+                    ));
+                }
+                self.apply(Action::Transfer {
+                    paths: found,
+                    dest,
+                    copy: true,
+                    policy: None,
+                });
+            }
+            Dropped::Image(source) => {
+                self.state.say(format!("Downloading the image into {name}"));
+                self.core.download_images(vec![source], dest);
+            }
+            Dropped::Unsupported(why) => self.state.say(format!("Cannot drop that: {why}")),
         }
     }
 
@@ -144,12 +321,41 @@ impl App {
                 let keys = self.core.view().loaded_keys();
                 self.state.selected.extend(keys);
             }
+            Action::ReloadConfig => self.reload_config(),
+            Action::ToggleHelp => self.state.help_open = !self.state.help_open,
             Action::Escape => {
-                if self.state.rename.take().is_some() {
+                if self.state.help_open {
+                    self.state.help_open = false;
+                } else if self.state.rename.take().is_some() {
                 } else if !self.core.nav().text().is_empty() {
                     self.core.escape();
                 } else {
                     self.state.clear_selection();
+                }
+            }
+            Action::EditPath => {
+                let current = self
+                    .core
+                    .nav()
+                    .location()
+                    .map(|p| p.to_string_lossy().into_owned())
+                    .unwrap_or_default();
+                self.state.path_edit = Some(current);
+                self.state.path_suggest_for.clear();
+                self.state.path_focus = true;
+            }
+            Action::GoToPath(text) => {
+                self.state.path_edit = None;
+                match quickfiles_core::pathinput::resolve(&text) {
+                    Some(dir) => self.core.open_folder(dir),
+                    None => self.state.say(format!("No such folder: {}", text.trim())),
+                }
+            }
+            Action::CloseWindow => {
+                if self.tray.active() {
+                    self.tray.hide_window();
+                } else {
+                    self.ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                 }
             }
             Action::ClearSearch => {
@@ -257,7 +463,20 @@ impl App {
                     paths.retain(|p| p.parent() != Some(dest.as_path()));
                 }
                 if paths.is_empty() {
+                    self.state.say(format!(
+                        "Already in {}",
+                        quickfiles_core::display_name(&dest)
+                    ));
                     return;
+                }
+                if policy.is_none() {
+                    self.state.say(format!(
+                        "{} {} item{} to {}",
+                        if copy { "Copying" } else { "Moving" },
+                        paths.len(),
+                        if paths.len() == 1 { "" } else { "s" },
+                        quickfiles_core::display_name(&dest)
+                    ));
                 }
                 match policy {
                     Some(p) => self.core.transfer(paths, dest, copy, p),
@@ -506,6 +725,32 @@ impl App {
         }
     }
 
+    /// A drag that started on a row and has left the window becomes a real drag-and-drop: other
+    /// programs (Explorer, a browser, a chat) can take the files. Blocks until the button is let go.
+    fn drag_out(&mut self, ctx: &egui::Context) {
+        let Some(drag) = self.state.drag.as_ref() else {
+            return;
+        };
+        // Read the window rect first: a nested `ctx.input` inside `ctx.input` can deadlock when
+        // another thread (a repaint request) is waiting for the context's lock.
+        let window = ctx.content_rect();
+        let outside = ctx.input(|i| {
+            i.pointer.primary_down() && i.pointer.latest_pos().is_none_or(|p| !window.contains(p))
+        });
+        if !outside {
+            return;
+        }
+        let paths = drag.paths.clone();
+        self.state.drag = None;
+        match quickfiles_core::ole_drag::start(&paths) {
+            Ok(Outcome::Cancelled) => {}
+            Ok(_) => self.state.say("Dragged out"),
+            Err(e) => self.state.say(format!("Drag failed: {e}")),
+        }
+        // The release happened inside the drag loop, so egui never saw it.
+        ctx.request_repaint();
+    }
+
     /// Toasts for finished file operations.
     fn report_jobs(&mut self) {
         let mut finished = false;
@@ -516,12 +761,12 @@ impl App {
             finished = true;
             let text = match job.state {
                 JobState::Done => match job.kind {
-                    quickfiles_core::jobs::Kind::Copy => "Copied",
-                    quickfiles_core::jobs::Kind::Move => "Moved",
-                    quickfiles_core::jobs::Kind::Recycle => "Moved to the Recycle Bin",
-                    quickfiles_core::jobs::Kind::Delete => "Deleted",
-                }
-                .to_owned(),
+                    quickfiles_core::jobs::Kind::Copy => "Copied".to_owned(),
+                    quickfiles_core::jobs::Kind::Move => "Moved".to_owned(),
+                    quickfiles_core::jobs::Kind::Recycle => "Moved to the Recycle Bin".to_owned(),
+                    quickfiles_core::jobs::Kind::Delete => "Deleted".to_owned(),
+                    quickfiles_core::jobs::Kind::Download => format!("Downloaded {}", job.current),
+                },
                 JobState::Cancelled => "Cancelled".to_owned(),
                 JobState::Failed(e) => format!("Failed: {e}"),
                 JobState::Running => continue,
@@ -540,7 +785,24 @@ impl eframe::App for App {
         let frame_start = std::time::Instant::now();
         let interval_ms = ui.input(|i| i.unstable_dt) * 1000.0;
         self.sync(ui.ctx());
+        // The window's X (or Alt+F4) hides it to the tray; Exit in the tray menu really quits.
+        if self.tray.active()
+            && !self.tray.quitting()
+            && ui.ctx().input(|i| i.viewport().close_requested())
+        {
+            ui.ctx()
+                .send_viewport_cmd(egui::ViewportCommand::CancelClose);
+            self.tray.hide_window();
+        }
+        for message in self.global.take_messages() {
+            self.state.say(message);
+        }
         self.report_jobs();
+        self.drag_out(ui.ctx());
+        // Another launch (`qf.exe C:\x`) asked this window to open a folder.
+        if let Some(dir) = quickfiles_core::single_instance::take_request() {
+            self.core.open_folder(dir);
+        }
 
         // Ctrl + wheel switches the view: wheel up = thumbnail grid, wheel down = detail list.
         let wheel: f32 = ui.ctx().input(|i| {
@@ -560,30 +822,48 @@ impl eframe::App for App {
             self.apply(Action::SetGrid(false));
         }
 
-        // Files dropped from Explorer are copied into the current folder.
-        let dropped = ui::dropped(ui.ctx());
-        if !dropped.is_empty() {
-            match self
-                .core
-                .nav()
-                .location()
-                .filter(|p| !p.as_os_str().is_empty())
-                .cloned()
-            {
-                Some(dest) => self.apply(Action::Transfer {
-                    paths: dropped,
-                    dest,
-                    copy: true,
-                    policy: None,
-                }),
-                None => self.state.say("Open a folder first, then drop the files"),
+        // Things dragged in from other programs (Explorer files, browser images). The OLE target
+        // sees both; egui's own events cover the case where it could not be registered.
+        let mut drops = Vec::new();
+        match &self.drop_target {
+            Some(t) => {
+                drops.extend(t.take_drops());
+                self.state.drop_hover = t.hover();
+                let ppp = ui.ctx().pixels_per_point();
+                self.state.drop_pos = t
+                    .hover_pos()
+                    .map(|(x, y)| egui::pos2(x as f32 / ppp, y as f32 / ppp));
+            }
+            None => {
+                let files = ui::dropped(ui.ctx());
+                if !files.is_empty() {
+                    drops.push(Dropped::Files(files));
+                }
+                self.state.drop_hover = ui
+                    .ctx()
+                    .input(|i| !i.raw.hovered_files.is_empty())
+                    .then_some(quickfiles_core::ole_drop::Hover::Files(
+                        ui.ctx().input(|i| i.raw.hovered_files.len()),
+                    ));
             }
         }
+        self.state.drop_dest = self
+            .state
+            .drop_hover
+            .as_ref()
+            .and_then(|_| self.drop_destination())
+            .map(|d| quickfiles_core::display_name(&d));
+        for dropped in drops {
+            self.handle_drop(dropped);
+        }
+        // Drawing sets it again for the folder under the pointer.
+        self.state.drop_over = None;
 
         // Hotkeys are applied before drawing, so their effect shows in this very frame.
         let mut actions = Vec::new();
         self.hotkeys
             .poll(ui.ctx(), self.state.menu.is_some(), &mut actions);
+        self.state.hints = self.hotkeys.hints();
         for action in actions.drain(..) {
             self.apply(action);
         }

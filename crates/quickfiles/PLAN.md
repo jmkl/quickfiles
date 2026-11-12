@@ -55,7 +55,7 @@ in the latest passes were written without a rustfmt available, so run it once on
 - **Drag and drop:** rows/tiles onto folders in the list, grid, sidebar and breadcrumb (Ctrl = copy);
   files dropped from Explorer are copied into the current folder.
 - **Tabs:** `Core` keeps a tab slot per `Nav` (Ctrl+T / Ctrl+W / Ctrl+Tab); strip appears with 2+ tabs.
-- **Hotkeys file:** `hotkeys.conf` overrides the built-in table (template written on first run).
+- **Config file:** `config.conf` (data folder, written on first run) has `[general]` (`global_hotkey`, default Ctrl+Alt+Space: shows the window from anywhere), `[theme]` (any palette colour, `font_size`) and `[hotkeys]`. Ctrl+Shift+R reloads it; an old `hotkeys.conf` is imported once.
 - **Thumbnail grid** (Ctrl+G, or the kebab menu) on the Thumb tier.
 - **This PC view:** drives show File System / Free Space / Size / Percent Full in the list and a
   usage-bar tile in the grid (`ui/drives.rs`); `DriveInfo` gained `fs`.
@@ -422,3 +422,4 @@ Open (defaults in brackets):
 1. Both search boxes (title bar and status bar) still edit the same string today. [Title bar is the query; the status-bar box becomes a type filter (all / files / folders / extension) in a later phase.]
 2. Start state. [Search mode with an empty list; a pref can restore the last folder.]
 3. "Start Everything" button on the gate screen. [Included when `Everything.exe` can be found; otherwise only the download link and Retry.]
+- **Drops from other programs:** `quickfiles-core/src/ole_drop.rs` replaces winit's drop target with an OLE `IDropTarget`. Files from Explorer are copied (`Action::Transfer`, name clashes ask); an image dragged from a browser is downloaded (`jobs::Kind::Download`, `download.rs`, `ureq`). Destination: the selected folder, else the open one. Needs a Windows run to confirm with Chrome, Edge and Firefox. Not done: browser images offered only as virtual files (`FileGroupDescriptorW` / `FileContents`, e.g. `blob:` / `data:` images).

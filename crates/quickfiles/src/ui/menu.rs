@@ -113,11 +113,11 @@ pub fn show(ui: &mut Ui, cx: &mut Cx<'_>, full: Rect) {
         8.0,
         Color32::from_black_alpha(70),
     );
-    p.rect_filled(rect, 8.0, pal.chrome);
+    p.rect_filled(rect, 8.0, pal.surface);
     p.rect_stroke(
         rect,
         8.0,
-        Stroke::new(1.0, pal.track_border),
+        Stroke::new(1.0, pal.control_border),
         StrokeKind::Inside,
     );
 
@@ -133,7 +133,7 @@ pub fn show(ui: &mut Ui, cx: &mut Cx<'_>, full: Rect) {
             y + HEADER_H * 0.5 - 2.0,
             header,
             &th.font,
-            pal.text_section,
+            pal.text_secondary,
             WIDTH - 24.0,
         );
         y += HEADER_H;
@@ -209,11 +209,11 @@ pub fn toast(ui: &mut Ui, cx: &mut Cx<'_>, full: Rect) {
     let g = super::widgets::galley(&p, &text, &th.font, pal.text, full.width() - 120.0);
     let size = g.size() + vec2(32.0, 18.0);
     let rect = Rect::from_center_size(pos2(full.center().x, full.bottom() - 34.0), size);
-    p.rect_filled(rect, size.y * 0.5, pal.chrome.gamma_multiply(alpha));
+    p.rect_filled(rect, size.y * 0.5, pal.surface.gamma_multiply(alpha));
     p.rect_stroke(
         rect,
         size.y * 0.5,
-        Stroke::new(1.0, pal.track_border.gamma_multiply(alpha)),
+        Stroke::new(1.0, pal.control_border.gamma_multiply(alpha)),
         StrokeKind::Inside,
     );
     p.galley(

@@ -1,11 +1,12 @@
 //! Drag and drop. In-app: drag rows onto a folder (list, grid, sidebar, breadcrumb) to move,
-//! hold Ctrl to copy. From Explorer: files dropped on the window are copied into the current
-//! folder. (Dragging out to Explorer needs OLE `DoDragDrop`; not implemented.)
+//! hold Ctrl to copy. From other programs (`quickfiles_core::ole_drop`): files from Explorer are
+//! copied, an image dragged from a browser is downloaded, into the selected folder or else the
+//! open one. (Dragging out to Explorer needs OLE `DoDragDrop`; not implemented.)
 
 use std::path::{Path, PathBuf};
 
 use eframe::egui::{
-    Align2, Color32, CursorIcon, Id, Key, LayerId, Order, Rect, Stroke, StrokeKind, Ui, pos2, vec2,
+    Color32, CursorIcon, Id, Key, LayerId, Order, Rect, Stroke, StrokeKind, Ui, pos2, vec2,
 };
 
 use super::{Action, Cx, widgets::galley};
@@ -36,6 +37,29 @@ fn valid_target(drag: &Drag, dest: &Path) -> bool {
 /// Marks `rect` as a drop target for `dest`. Highlights it while a drag hovers it and queues
 /// the transfer when the button is released there. Returns whether it is hovered.
 pub fn target(ui: &Ui, cx: &mut Cx<'_>, rect: Rect, dest: &Path) -> bool {
+    // Something dragged in from another program: light up the folder under the pointer and
+    // remember it, so releasing there drops into it (see `App::handle_drop`).
+    if cx.state.drop_hover.is_some() {
+        let Some(pos) = cx.state.drop_pos else {
+            return false;
+        };
+        if !rect.contains(pos) || dest.as_os_str().is_empty() {
+            return false;
+        }
+        ui.painter().rect_filled(
+            rect,
+            cx.theme.metrics.radius,
+            cx.theme.palette.accent.gamma_multiply(0.25),
+        );
+        ui.painter().rect_stroke(
+            rect,
+            cx.theme.metrics.radius,
+            Stroke::new(1.5, cx.theme.palette.accent),
+            StrokeKind::Inside,
+        );
+        cx.state.drop_over = Some(dest.to_owned());
+        return true;
+    }
     let Some(drag) = cx.state.drag.as_ref() else {
         return false;
     };
@@ -82,7 +106,7 @@ pub fn overlay(ui: &mut Ui, cx: &mut Cx<'_>, full: Rect) {
             let p = ctx.layer_painter(LayerId::new(Order::Tooltip, Id::new("qf_drag")));
             let g = galley(&p, &text, &th.font, pal.text, 260.0);
             let rect = Rect::from_min_size(pos + vec2(14.0, 14.0), g.size() + vec2(20.0, 10.0));
-            p.rect_filled(rect, 6.0, pal.chrome);
+            p.rect_filled(rect, 6.0, pal.surface);
             p.rect_stroke(rect, 6.0, Stroke::new(1.0, pal.accent), StrokeKind::Inside);
             p.galley(rect.min + vec2(10.0, 5.0), g, pal.text);
         }
@@ -92,26 +116,41 @@ pub fn overlay(ui: &mut Ui, cx: &mut Cx<'_>, full: Rect) {
         }
     }
 
-    // Files coming in from another program.
-    if ctx.input(|i| !i.raw.hovered_files.is_empty()) {
+    // Something coming in from another program (files from Explorer, an image from a browser).
+    // A folder under the pointer lights up on its own; with none, the whole window is the target.
+    if let Some(hover) = cx.state.drop_hover.clone() {
+        use quickfiles_core::ole_drop::Hover;
+        let over = cx
+            .state
+            .drop_over
+            .as_deref()
+            .map(quickfiles_core::display_name);
+        let dest = over.clone().or_else(|| cx.state.drop_dest.clone());
         let p = ctx.layer_painter(LayerId::new(Order::Foreground, Id::new("qf_drop_banner")));
-        p.rect_filled(full, 0.0, Color32::from_black_alpha(110));
-        let text = match cx
-            .core
-            .nav()
-            .location()
-            .filter(|l| !l.as_os_str().is_empty())
-        {
-            Some(l) => format!("Drop to copy into {}", quickfiles_core::display_name(l)),
-            None => "Open a folder first".to_owned(),
+        if over.is_none() {
+            p.rect_filled(full, 0.0, Color32::from_black_alpha(90));
+            p.rect_stroke(
+                full.shrink(2.0),
+                6.0,
+                Stroke::new(3.0, pal.accent),
+                StrokeKind::Inside,
+            );
+        }
+        let text = match (&hover, dest.as_deref()) {
+            (Hover::Other, _) => "This cannot be dropped here".to_owned(),
+            (_, None) => "Open a folder first".to_owned(),
+            (Hover::Files(1), Some(d)) => format!("Copy 1 item into \"{d}\""),
+            (Hover::Files(n), Some(d)) => format!("Copy {n} items into \"{d}\""),
+            (Hover::Image, Some(d)) => format!("Download the image into \"{d}\""),
         };
-        p.text(
-            pos2(full.center().x, full.center().y),
-            Align2::CENTER_CENTER,
-            text,
-            th.font.clone(),
-            pal.text,
+        let g = galley(&p, &text, &th.font, pal.text, full.width() - 80.0);
+        let pill = Rect::from_center_size(
+            pos2(full.center().x, full.bottom() - 46.0),
+            g.size() + vec2(28.0, 14.0),
         );
+        p.rect_filled(pill, 8.0, pal.surface);
+        p.rect_stroke(pill, 8.0, Stroke::new(1.0, pal.accent), StrokeKind::Inside);
+        p.galley(pill.min + vec2(14.0, 7.0), g, pal.text);
     }
 }
 

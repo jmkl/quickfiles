@@ -131,9 +131,9 @@ pub fn icon_button(
     let tint = if !enabled {
         pal.icon_disabled
     } else if response.hovered() {
-        pal.icon_strong
+        pal.icon_active
     } else {
-        pal.icon_nav
+        pal.icon_muted
     };
     icons::paint(p, pal, icon, center, tint);
     response

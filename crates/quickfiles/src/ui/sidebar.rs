@@ -16,7 +16,7 @@ pub fn show(ui: &mut Ui, cx: &mut Cx<'_>, r: Rect) {
     let pal = &cx.theme.palette;
     let p = ui.painter().clone();
 
-    p.rect_filled(r, 0.0, pal.sidebar);
+    p.rect_filled(r, 0.0, pal.panel);
     vline(&p, r.right() - 1.0, r.top(), r.bottom(), pal.border);
     let inner_right = r.right() - 1.0;
 
@@ -112,7 +112,7 @@ fn hint(ui: &mut Ui, cx: &Cx<'_>, text: &str) {
         rect.center().y,
         text,
         &cx.theme.font,
-        cx.theme.palette.text_dim,
+        cx.theme.palette.text_muted,
         rect.width() - m.side_text_x - 10.0,
     );
 }
@@ -135,7 +135,7 @@ fn section_header(ui: &mut Ui, th: &Theme, icon: Icon, title: &str, open: &mut b
         pal,
         icon,
         pos2(rect.left() + 19.5, cy),
-        pal.text_section,
+        pal.text_secondary,
         0.8,
     );
     text_left(
@@ -144,7 +144,7 @@ fn section_header(ui: &mut Ui, th: &Theme, icon: Icon, title: &str, open: &mut b
         cy,
         title,
         &th.font,
-        pal.text_section,
+        pal.text_secondary,
         rect.width() - 80.0,
     );
 
@@ -158,7 +158,7 @@ fn section_header(ui: &mut Ui, th: &Theme, icon: Icon, title: &str, open: &mut b
         pal,
         chevron,
         pos2(rect.right() - 28.5, cy),
-        pal.text_section,
+        pal.text_secondary,
         1.1,
     );
 
@@ -251,11 +251,11 @@ fn drive_item(ui: &mut Ui, cx: &mut Cx<'_>, drive: &DriveInfo) {
         pos2(rect.left() + m.side_text_x, rect.top() + 22.0),
         pos2(rect.right() - 26.0, rect.top() + 27.0),
     );
-    p.rect_filled(bar, 1.0, pal.track);
+    p.rect_filled(bar, 1.0, pal.control);
     p.rect_stroke(
         bar,
         1.0,
-        Stroke::new(1.0, pal.track_border),
+        Stroke::new(1.0, pal.control_border),
         StrokeKind::Inside,
     );
     let filled = Rect::from_min_size(

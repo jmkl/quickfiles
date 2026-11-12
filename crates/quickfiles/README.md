@@ -13,7 +13,7 @@ from then on typing searches below that folder. The x button in the box goes bac
 | File | Responsibility |
 |---|---|
 | `src/theme.rs` | **All** colours (`Palette`), sizes (`Metrics`), fonts and egui style. Re-skin here only. |
-| `src/hotkeys.rs` | **All** keyboard shortcuts, in one table, overridable in `hotkeys.conf`. Shortcuts produce the same `Action`s the buttons do. |
+| `src/hotkeys.rs` | **All** keyboard shortcuts, in one table, overridable in the `[hotkeys]` section of `config.conf`. Shortcuts produce the same `Action`s the buttons do. |
 | `src/state.rs` | UI-only state: panels, selection (by stable row key), rename, menu, toast. |
 | `src/app.rs` | Glue: owns `quickfiles_core::Core`, turns `Action`s into core calls. |
 | `src/ui/layout.rs` | Splits the window into regions (title, sidebar, toolbar, header, list, optional preview). |
@@ -41,8 +41,7 @@ onto the window to copy them into the current folder.
 ## Settings
 
 Everything lives in `%LOCALAPPDATA%\quickfiles\`: `quickfiles.db` (history, bookmarks, prefs, column widths),
-`window.txt` (window size), `hotkeys.conf` (written on first run; lines like `Ctrl+B = ToggleSidebar`,
-`F2 = none` to unbind).
+`window.txt` (window size), `config.conf` (written on first run: `[general]` global hotkey, `[theme]` colours, `[hotkeys]` bindings such as `Ctrl+B = ToggleSidebar` or `F2 = none`; Ctrl+Shift+R reloads it).
 
 ## Code style
 

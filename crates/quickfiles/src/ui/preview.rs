@@ -28,7 +28,7 @@ pub fn show(ui: &mut Ui, cx: &mut Cx<'_>, r: Rect) {
     let (pal, m) = (&th.palette, &th.metrics);
     let p = ui.painter().clone();
 
-    p.rect_filled(r, 0.0, pal.sidebar);
+    p.rect_filled(r, 0.0, pal.panel);
     vline(&p, r.left(), r.top(), r.bottom(), pal.border);
     let left = r.left() + 1.0; // inside the divider
 
@@ -40,7 +40,7 @@ pub fn show(ui: &mut Ui, cx: &mut Cx<'_>, r: Rect) {
         r.top() + 15.5,
         "Preview",
         &th.font,
-        pal.text_section,
+        pal.text_secondary,
         r.width() - 70.0,
     );
     if icon_button(
@@ -73,7 +73,7 @@ pub fn show(ui: &mut Ui, cx: &mut Cx<'_>, r: Rect) {
             Align2::CENTER_CENTER,
             "Select a file to preview",
             th.font.clone(),
-            pal.text_dim,
+            pal.text_muted,
         );
         return;
     };
@@ -81,7 +81,7 @@ pub fn show(ui: &mut Ui, cx: &mut Cx<'_>, r: Rect) {
     // Big icon card
     let mid_x = (left + r.right()) * 0.5;
     let card = Rect::from_center_size(pos2(mid_x, r.top() + head_h + 62.0), vec2(96.0, 96.0));
-    p.rect_filled(card, 10.0, pal.main);
+    p.rect_filled(card, 10.0, pal.background);
     p.rect_stroke(card, 10.0, Stroke::new(1.0, pal.border), StrokeKind::Inside);
     let ctx = ui.ctx().clone();
     let thumb = cx.tex.entry(&ctx, cx.core.images(), &entry, Want::Thumb);
@@ -115,11 +115,11 @@ pub fn show(ui: &mut Ui, cx: &mut Cx<'_>, r: Rect) {
         g,
         pal.text,
     );
-    let g = galley(&p, &entry.type_label, &th.font, pal.text_dim, max_w);
+    let g = galley(&p, &entry.type_label, &th.font, pal.text_muted, max_w);
     p.galley(
         pos2(mid_x - g.size().x * 0.5, name_y + 20.0 - g.size().y * 0.5),
         g,
-        pal.text_dim,
+        pal.text_muted,
     );
 
     // Details
@@ -130,7 +130,7 @@ pub fn show(ui: &mut Ui, cx: &mut Cx<'_>, r: Rect) {
         ("Modified", entry.modified_text.to_string()),
         ("Location", entry.parent.to_string()),
     ] {
-        text_left(&p, left + 16.0, y, label, &th.font, pal.text_dim, 70.0);
+        text_left(&p, left + 16.0, y, label, &th.font, pal.text_muted, 70.0);
         text_left(
             &p,
             left + 90.0,
@@ -151,7 +151,7 @@ pub fn show(ui: &mut Ui, cx: &mut Cx<'_>, r: Rect) {
         y,
         "Content",
         &th.font,
-        pal.text_section,
+        pal.text_secondary,
         120.0,
     );
     let body = Rect::from_min_max(
@@ -161,7 +161,7 @@ pub fn show(ui: &mut Ui, cx: &mut Cx<'_>, r: Rect) {
     if body.height() < 40.0 {
         return;
     }
-    p.rect_filled(body, m.radius, pal.main);
+    p.rect_filled(body, m.radius, pal.background);
     p.rect_stroke(
         body,
         m.radius,
@@ -216,7 +216,7 @@ pub fn show(ui: &mut Ui, cx: &mut Cx<'_>, r: Rect) {
                     Align2::RIGHT_BOTTOM,
                     "Loading…",
                     th.font.clone(),
-                    pal.text_dim,
+                    pal.text_muted,
                 );
             }
             _ => {
@@ -225,7 +225,7 @@ pub fn show(ui: &mut Ui, cx: &mut Cx<'_>, r: Rect) {
                     Align2::CENTER_CENTER,
                     "Loading preview…",
                     th.font.clone(),
-                    pal.text_dim,
+                    pal.text_muted,
                 );
             }
         }
@@ -244,7 +244,7 @@ pub fn show(ui: &mut Ui, cx: &mut Cx<'_>, r: Rect) {
             Align2::CENTER_CENTER,
             "No preview available",
             th.font.clone(),
-            pal.text_dim,
+            pal.text_muted,
         );
         return;
     }
@@ -270,7 +270,7 @@ pub fn show(ui: &mut Ui, cx: &mut Cx<'_>, r: Rect) {
             cy,
             line,
             &th.mono,
-            pal.text_section,
+            pal.text_secondary,
             text_w,
         );
     }

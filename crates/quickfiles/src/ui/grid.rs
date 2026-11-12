@@ -20,7 +20,7 @@ const PREFETCH_ROWS: usize = 2;
 pub fn show(ui: &mut Ui, cx: &mut Cx<'_>, header: Rect, area: Rect) {
     let th = cx.theme;
     // The column headers do not exist in grid mode: the header row carries the sort chips.
-    ui.painter().rect_filled(header, 0.0, th.palette.main);
+    ui.painter().rect_filled(header, 0.0, th.palette.background);
     sort_bar(ui, cx, header);
 
     let view = cx.core.view().clone();
@@ -35,7 +35,7 @@ pub fn show(ui: &mut Ui, cx: &mut Cx<'_>, header: Rect, area: Rect) {
             eframe::egui::Align2::CENTER_CENTER,
             text,
             th.font.clone(),
-            th.palette.text_dim,
+            th.palette.text_muted,
         );
         view.want(0..0);
         return;
@@ -135,25 +135,38 @@ fn tile(ui: &mut Ui, cx: &mut Cx<'_>, view: &quickfiles_core::View, i: usize, re
         Rect::from_min_size(rect.min + vec2(10.0, 6.0), vec2(rect.width() - 20.0, 72.0)),
     );
 
-    let g = galley(&p, &entry.name, &th.font, pal.text, rect.width() - 10.0);
-    let x = rect.center().x - g.size().x * 0.5;
-    p.galley(
-        pos2(x.max(rect.left() + 5.0), rect.top() + 86.0),
-        g,
-        pal.text,
-    );
-    if !entry.size_text.is_empty() {
+    let renaming = cx.state.rename.as_ref().is_some_and(|r| r.key == key);
+    if renaming {
+        // The inline editor replaces the name under the thumbnail.
+        super::file_list::rename_box(
+            ui,
+            cx,
+            Rect::from_min_size(
+                pos2(rect.left() + 3.0, rect.top() + 82.0),
+                vec2(rect.width() - 6.0, 22.0),
+            ),
+        );
+    } else {
+        let g = galley(&p, &entry.name, &th.font, pal.text, rect.width() - 10.0);
+        let x = rect.center().x - g.size().x * 0.5;
+        p.galley(
+            pos2(x.max(rect.left() + 5.0), rect.top() + 86.0),
+            g,
+            pal.text,
+        );
+    }
+    if !renaming && !entry.size_text.is_empty() {
         let s = galley(
             &p,
             &entry.size_text,
             &th.font,
-            pal.text_dim,
+            pal.text_muted,
             rect.width() - 10.0,
         );
         p.galley(
             pos2(rect.center().x - s.size().x * 0.5, rect.top() + 102.0),
             s,
-            pal.text_dim,
+            pal.text_muted,
         );
     }
 
@@ -241,7 +254,7 @@ fn sort_bar(ui: &mut Ui, cx: &mut Cx<'_>, header: Rect) {
     let cy = header.center().y;
     let sort = cx.core.nav().query().sort;
     let mut x = header.left() + PAD + 4.0;
-    text_left(&p, x, cy, "Sort by", &th.font, pal.text_dim, 60.0);
+    text_left(&p, x, cy, "Sort by", &th.font, pal.text_muted, 60.0);
     x += 62.0;
     for (key, label) in [
         (SortKey::Name, "Name"),
@@ -261,7 +274,7 @@ fn sort_bar(ui: &mut Ui, cx: &mut Cx<'_>, header: Rect) {
         let color = if active || response.hovered() {
             pal.text
         } else {
-            pal.text_dim
+            pal.text_muted
         };
         text_left(&p, x + 10.0, cy, label, &th.font, color, w - 34.0);
         if active {
@@ -274,7 +287,7 @@ fn sort_bar(ui: &mut Ui, cx: &mut Cx<'_>, header: Rect) {
                 pal,
                 arrow,
                 pos2(rect.right() - 13.0, cy),
-                pal.text_section,
+                pal.text_secondary,
                 0.7,
             );
         }

@@ -3,7 +3,7 @@
 use eframe::egui::{Align2, Rect, Sense, Stroke, StrokeKind, Ui, pos2, vec2};
 
 use super::{
-    Action, Cx,
+    Action, Cx, dnd,
     icons::{self, Icon},
     widgets::{galley, hit, hline},
 };
@@ -19,7 +19,7 @@ pub fn show(ui: &mut Ui, cx: &mut Cx<'_>, r: Rect) {
     let n = cx.core.tab_count();
     let active = cx.core.active_tab();
 
-    p.rect_filled(r, 0.0, pal.chrome);
+    p.rect_filled(r, 0.0, pal.surface);
     hline(&p, r.bottom() - 1.0, r.left(), r.right(), pal.border);
 
     let tab_w = ((r.width() - PLUS_W - 8.0) / n as f32).clamp(70.0, MAX_TAB_W);
@@ -29,14 +29,20 @@ pub fn show(ui: &mut Ui, cx: &mut Cx<'_>, r: Rect) {
             vec2(tab_w - 3.0, HEIGHT - 5.0),
         );
         let response = hit(ui, rect, ("tab", i), Sense::click());
+        // Files dragged onto a tab go to the folder that tab shows; resting on another tab for a
+        // moment switches to it, so the drop can be made on a subfolder there.
         if i == active {
-            p.rect_filled(rect, 6.0, pal.main);
+            p.rect_filled(rect, 6.0, pal.background);
             p.rect_stroke(rect, 6.0, Stroke::new(1.0, pal.border), StrokeKind::Inside);
         } else if response.hovered() {
             p.rect_filled(rect, 6.0, pal.hover);
         }
         let title = cx.core.tab_title(i);
-        let color = if i == active { pal.text } else { pal.text_dim };
+        let color = if i == active {
+            pal.text
+        } else {
+            pal.text_muted
+        };
         let g = galley(&p, &title, &th.font, color, tab_w - 46.0);
         p.galley(
             pos2(rect.left() + 10.0, rect.center().y - g.size().y * 0.5),
@@ -44,6 +50,29 @@ pub fn show(ui: &mut Ui, cx: &mut Cx<'_>, r: Rect) {
             color,
         );
 
+        // Drawn after the tab itself, so the drop highlight is on top of it.
+        if cx.state.drag.is_some() || cx.state.drop_hover.is_some() {
+            let released = ui.input(|inp| inp.pointer.any_released());
+            let over = ui
+                .input(|inp| inp.pointer.hover_pos())
+                .is_some_and(|p| rect.contains(p));
+            if released && over {
+                quickfiles_core::sys::debug_log(
+                    "dnd.log",
+                    &format!(
+                        "released on tab {i} (active {active}): dir {:?}, dragging {}",
+                        cx.core.tab_dir(i),
+                        cx.state.drag.as_ref().map_or(0, |d| d.paths.len()),
+                    ),
+                );
+            }
+            if let Some(dir) = cx.core.tab_dir(i) {
+                dnd::target(ui, cx, rect, &dir);
+            }
+            if i != active && hover_dwell(ui, i, rect, 0.7) {
+                cx.actions.push(Action::SwitchTab(i));
+            }
+        }
         if n > 1 {
             let c = pos2(rect.right() - 13.0, rect.center().y);
             let close_rect = Rect::from_center_size(c, vec2(16.0, 16.0));
@@ -57,9 +86,9 @@ pub fn show(ui: &mut Ui, cx: &mut Cx<'_>, r: Rect) {
                 Icon::Close,
                 c,
                 if close.hovered() {
-                    pal.icon_strong
+                    pal.icon_active
                 } else {
-                    pal.text_section
+                    pal.text_secondary
                 },
                 0.65,
             );
@@ -96,5 +125,37 @@ pub fn show(ui: &mut Ui, cx: &mut Cx<'_>, r: Rect) {
     );
     if r2.clicked() {
         cx.actions.push(Action::NewTab);
+    }
+}
+
+/// True once the pointer has rested on `rect` for `secs` while dragging (fires once per rest).
+fn hover_dwell(ui: &Ui, i: usize, rect: Rect, secs: f64) -> bool {
+    let id = eframe::egui::Id::new(("tab_dwell", i));
+    let now = ui.input(|inp| inp.time);
+    let over = ui
+        .input(|inp| inp.pointer.hover_pos().or(inp.pointer.latest_pos()))
+        .is_some_and(|p| rect.contains(p));
+    let since: Option<f64> = ui.data(|d| d.get_temp(id));
+    match (over, since) {
+        (true, None) => {
+            ui.data_mut(|d| d.insert_temp(id, now));
+            ui.ctx()
+                .request_repaint_after(std::time::Duration::from_millis(750));
+            false
+        }
+        (true, Some(t)) if now - t >= secs => {
+            ui.data_mut(|d| d.remove::<f64>(id));
+            true
+        }
+        (true, Some(_)) => {
+            ui.ctx()
+                .request_repaint_after(std::time::Duration::from_millis(100));
+            false
+        }
+        (false, Some(_)) => {
+            ui.data_mut(|d| d.remove::<f64>(id));
+            false
+        }
+        (false, None) => false,
     }
 }

@@ -19,6 +19,7 @@ mod tabs;
 mod tex;
 mod title_bar;
 mod toolbar;
+mod whichkey;
 mod widgets;
 
 use std::path::PathBuf;
@@ -56,6 +57,12 @@ pub enum Action {
     Escape,
     /// The x button: clear the text and search everything again.
     ClearSearch,
+    /// The window's X: hide to the tray (or quit when there is no tray).
+    CloseWindow,
+    /// Edit the address bar (type a path).
+    EditPath,
+    /// Open what was typed in the address bar.
+    GoToPath(String),
     /// Moves the active item up/down in the list (selecting it).
     MoveFocus(i32),
     /// Shift+Arrow: grows the selection.
@@ -91,6 +98,10 @@ pub enum Action {
     TogglePerf,
     CopyPerf,
     ResetPerf,
+    /// `?` (Shift+/): list of every hotkey, bottom right.
+    ToggleHelp,
+    /// Ctrl+Shift+R: re-read `config.conf` (hotkeys, theme, global hotkey).
+    ReloadConfig,
     /// Ctrl + mouse wheel: up = grid, down = list.
     SetGrid(bool),
     CopyPath,
@@ -165,7 +176,8 @@ pub fn draw(ui: &mut Ui, cx: &mut Cx<'_>) {
         },
     );
 
-    ui.painter().rect_filled(full, 0.0, theme.palette.main);
+    ui.painter()
+        .rect_filled(full, 0.0, theme.palette.background);
 
     // Everything is required: without it the whole body is the gate screen.
     let gate = matches!(cx.core.status(), EngineStatus::Missing(_));
@@ -198,6 +210,7 @@ pub fn draw(ui: &mut Ui, cx: &mut Cx<'_>) {
     menu::toast(ui, cx, full);
     dnd::overlay(ui, cx, full);
     perf::overlay(ui, cx, full);
+    whichkey::overlay(ui, cx, full);
     // Last, so the resize grips sit on top of everything else.
     resize::show(ui, full);
 }

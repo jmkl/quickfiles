@@ -27,6 +27,8 @@ pub enum Kind {
     Move,
     Recycle,
     Delete,
+    /// An image fetched from a web address (dragged out of a browser).
+    Download,
 }
 
 impl Kind {
@@ -36,6 +38,7 @@ impl Kind {
             Kind::Move => "Moving",
             Kind::Recycle => "Recycling",
             Kind::Delete => "Deleting",
+            Kind::Download => "Downloading",
         }
     }
 }
@@ -144,6 +147,61 @@ impl Jobs {
         id
     }
 
+    /// Download the image at `source` into the folder `dest` on a worker thread.
+    pub fn start_download(
+        &self,
+        source: crate::dropdata::ImageSource,
+        dest: PathBuf,
+        on_done: impl FnOnce() + Send + 'static,
+    ) -> u64 {
+        let job = Arc::new(Job {
+            id: self.next.fetch_add(1, Ordering::Relaxed),
+            kind: Kind::Download,
+            cancel: AtomicBool::new(false),
+            done: AtomicU64::new(0),
+            total: AtomicU64::new(1),
+            bytes_done: AtomicU64::new(0),
+            bytes_total: AtomicU64::new(0),
+            state: Mutex::new((JobState::Running, short_url(&source.url))),
+        });
+        self.list
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .push(job.clone());
+        let wake = self.wake.clone();
+        let id = job.id;
+        thread::spawn(move || {
+            let sink = JobSink {
+                job: &job,
+                wake: &wake,
+                last_wake: std::cell::Cell::new(std::time::Instant::now()),
+            };
+            let result = crate::download::fetch_image(
+                &crate::http::Http::new(),
+                &source.url,
+                source.referer.as_deref(),
+                &dest,
+                &sink,
+            );
+            let mut st = job.state.lock().unwrap_or_else(|e| e.into_inner());
+            st.0 = if job.cancel.load(Ordering::Relaxed) {
+                JobState::Cancelled
+            } else {
+                match result {
+                    Ok(_) => {
+                        job.done.store(1, Ordering::Relaxed);
+                        JobState::Done
+                    }
+                    Err(e) => JobState::Failed(e.to_string()),
+                }
+            };
+            drop(st);
+            on_done();
+            wake();
+        });
+        id
+    }
+
     pub fn cancel(&self, id: u64) {
         if let Some(j) = self
             .list
@@ -186,6 +244,47 @@ impl Jobs {
     }
 }
 
+/// "https://host/path/file.png?x" -> "host/…/file.png", for the progress text before the real
+/// file name is known.
+fn short_url(url: &str) -> String {
+    let rest = url.split_once("://").map_or(url, |(_, r)| r);
+    let rest = rest.split(['?', '#']).next().unwrap_or(rest);
+    match (rest.split_once('/'), rest.rsplit('/').next()) {
+        (Some((host, _)), Some(file)) if !file.is_empty() && file != host => {
+            format!("{host}/…/{file}")
+        }
+        _ => rest.trim_end_matches('/').to_owned(),
+    }
+}
+
+/// Feeds a download's progress into its job counters.
+struct JobSink<'a> {
+    job: &'a Job,
+    wake: &'a Wake,
+    last_wake: std::cell::Cell<std::time::Instant>,
+}
+
+impl crate::download::Sink for JobSink<'_> {
+    fn named(&self, name: &str) {
+        self.job.state.lock().unwrap_or_else(|e| e.into_inner()).1 = name.to_owned();
+        (self.wake)();
+    }
+    fn total(&self, bytes: u64) {
+        self.job.bytes_total.store(bytes, Ordering::Relaxed);
+        (self.wake)();
+    }
+    fn advance(&self, bytes: u64) {
+        self.job.bytes_done.fetch_add(bytes, Ordering::Relaxed);
+        if self.last_wake.get().elapsed() >= std::time::Duration::from_millis(100) {
+            self.last_wake.set(std::time::Instant::now());
+            (self.wake)();
+        }
+    }
+    fn cancelled(&self) -> bool {
+        self.job.cancel.load(Ordering::Relaxed)
+    }
+}
+
 fn run(
     job: &Job,
     sources: &[PathBuf],
@@ -219,6 +318,7 @@ fn run(
                     fs::remove_file(src)?;
                 }
             }
+            Kind::Download => unreachable!("downloads use start_download"),
             Kind::Copy | Kind::Move => {
                 let dest = dest.ok_or_else(|| io::Error::other("no destination"))?;
                 let Some(name) = src.file_name() else {

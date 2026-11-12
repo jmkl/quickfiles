@@ -27,7 +27,8 @@ pub fn show(ui: &mut Ui, cx: &mut Cx<'_>, header: Rect, area: Rect) {
     cx.state.list_scroll = 0.0;
     view.want(0..view.len());
     if cx.state.grid {
-        ui.painter().rect_filled(header, 0.0, cx.theme.palette.main);
+        ui.painter()
+            .rect_filled(header, 0.0, cx.theme.palette.background);
         grid(ui, cx, &view, &drives, area);
     } else {
         list(ui, cx, &view, &drives, header, area);
@@ -126,7 +127,7 @@ fn list(ui: &mut Ui, cx: &mut Cx<'_>, view: &View, drives: &[DriveInfo], header:
         cy,
         "Name",
         &th.font,
-        pal.text_dim,
+        pal.text_muted,
         120.0,
     );
     for (label, left, _) in &xs {
@@ -137,7 +138,7 @@ fn list(ui: &mut Ui, cx: &mut Cx<'_>, view: &View, drives: &[DriveInfo], header:
             header.top() + 23.0,
             pal.border,
         );
-        text_left(&p, left + pad, cy, label, &th.font, pal.text_dim, 110.0);
+        text_left(&p, left + pad, cy, label, &th.font, pal.text_muted, 110.0);
     }
 
     // Rows.
@@ -181,13 +182,13 @@ fn list(ui: &mut Ui, cx: &mut Cx<'_>, view: &View, drives: &[DriveInfo], header:
                 cy,
                 &entry.type_label,
                 &th.font,
-                pal.text_dim,
+                pal.text_muted,
                 100.0,
             );
         }
         let Some(d) = info else { continue };
         if let Some((_, left, _)) = col("File System") {
-            text_left(&p, left + pad, cy, &d.fs, &th.font, pal.text_dim, 80.0);
+            text_left(&p, left + pad, cy, &d.fs, &th.font, pal.text_muted, 80.0);
         }
         if let Some((_, left, _)) = col("Free Space") {
             text_left(
@@ -196,7 +197,7 @@ fn list(ui: &mut Ui, cx: &mut Cx<'_>, view: &View, drives: &[DriveInfo], header:
                 cy,
                 &format_size(d.free),
                 &th.font,
-                pal.text_dim,
+                pal.text_muted,
                 90.0,
             );
         }
@@ -207,18 +208,18 @@ fn list(ui: &mut Ui, cx: &mut Cx<'_>, view: &View, drives: &[DriveInfo], header:
                 cy,
                 &format_size(d.total),
                 &th.font,
-                pal.text_dim,
+                pal.text_muted,
                 82.0,
             );
         }
         if let Some((_, left, w)) = col("Percent Full") {
             let bar =
                 Rect::from_min_max(pos2(left + pad, cy - 8.0), pos2(left + w - 12.0, cy + 8.0));
-            p.rect_filled(bar, 2.0, pal.track);
+            p.rect_filled(bar, 2.0, pal.control);
             p.rect_stroke(
                 bar,
                 2.0,
-                Stroke::new(1.0, pal.track_border),
+                Stroke::new(1.0, pal.control_border),
                 StrokeKind::Inside,
             );
             let fill = Rect::from_min_size(
@@ -293,11 +294,11 @@ fn grid(ui: &mut Ui, cx: &mut Cx<'_>, view: &View, drives: &[DriveInfo], area: R
             pos2(rect.left() + 8.0, rect.top() + 98.0),
             vec2(rect.width() - 16.0, 10.0),
         );
-        p.rect_filled(bar, 1.0, pal.track);
+        p.rect_filled(bar, 1.0, pal.control);
         p.rect_stroke(
             bar,
             1.0,
-            Stroke::new(1.0, pal.track_border),
+            Stroke::new(1.0, pal.control_border),
             StrokeKind::Inside,
         );
         let fill = Rect::from_min_size(
@@ -312,7 +313,7 @@ fn grid(ui: &mut Ui, cx: &mut Cx<'_>, view: &View, drives: &[DriveInfo], area: R
             rect.top() + 118.0,
             &text,
             &th.font,
-            pal.text_dim,
+            pal.text_muted,
             rect.width() - 16.0,
         );
     }

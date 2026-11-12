@@ -95,6 +95,19 @@ pub struct State {
     pub section_open: [bool; 4],
     /// One-shot requests set by hotkeys, consumed by the widget they concern.
     pub focus_search: bool,
+    /// The address bar while it is being edited (the typed text), else `None`.
+    pub path_edit: Option<String>,
+    /// Focus and select the address bar text on the next frame.
+    pub path_focus: bool,
+    /// Folders offered while typing a path, for the text in `path_suggest_for`.
+    pub path_suggest: Vec<PathBuf>,
+    pub path_suggest_for: String,
+    /// Whether that text names an existing folder (the bar turns red when not).
+    pub path_valid: bool,
+    /// Highlighted suggestion (arrow keys); `None` until the user moves in the list.
+    pub path_sel: Option<usize>,
+    /// Where the suggestion list was drawn last frame (a click there must not close the editor).
+    pub path_list_rect: Option<eframe::egui::Rect>,
     pub scroll_to_focus: bool,
     /// Vertical scroll offset of the file list as of the last frame.
     pub list_scroll: f32,
@@ -140,6 +153,20 @@ pub struct State {
     /// One-shot scroll offset to apply to the list.
     pub scroll_to: Option<f32>,
     pub perf: crate::ui::Perf,
+    /// Which-key panel (bottom left): set each frame while a key sequence is half typed.
+    pub hints: Option<crate::hotkeys::Hints>,
+    /// `?` panel (bottom right) and the rows it lists.
+    pub help_open: bool,
+    pub help_rows: Vec<crate::hotkeys::HelpRow>,
+    /// What another program is dragging over the window (from the OLE drop target), and the
+    /// name of the folder it would land in.
+    pub drop_hover: Option<quickfiles_core::ole_drop::Hover>,
+    pub drop_dest: Option<String>,
+    /// Pointer position (egui points) of that drag, when known.
+    pub drop_pos: Option<eframe::egui::Pos2>,
+    /// The folder under the pointer during the last frame of such a drag; set by `dnd::target`.
+    /// A drop goes there; with none, to the selected folder or the open one.
+    pub drop_over: Option<PathBuf>,
 }
 
 impl State {
@@ -158,6 +185,13 @@ impl State {
                 .clamp(PREVIEW_MIN_W, PREVIEW_MAX_W),
             section_open: [true; 4],
             focus_search: true,
+            path_edit: None,
+            path_focus: false,
+            path_suggest: Vec::new(),
+            path_suggest_for: String::new(),
+            path_valid: true,
+            path_sel: None,
+            path_list_rect: None,
             scroll_to_focus: false,
             list_scroll: 0.0,
             scroll_gate: ScrollGate::default(),
@@ -186,6 +220,13 @@ impl State {
             restore_scroll_next: false,
             scroll_to: None,
             perf: crate::ui::Perf::default(),
+            hints: None,
+            help_open: false,
+            help_rows: Vec::new(),
+            drop_hover: None,
+            drop_dest: None,
+            drop_pos: None,
+            drop_over: None,
         }
     }
 

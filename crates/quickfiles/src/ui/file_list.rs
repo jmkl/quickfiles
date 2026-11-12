@@ -118,12 +118,12 @@ fn draw_header(ui: &mut Ui, cx: &mut Cx<'_>, r: Rect, cols: &Columns) {
     let some_selected = !cx.state.selected.is_empty();
     if all_selected {
         p.rect_filled(check, 3.0, pal.accent);
-        draw_check_mark(&p, check, pal.icon_strong);
+        draw_check_mark(&p, check, pal.icon_active);
     } else {
         let edge = if check_response.hovered() {
-            pal.text_section
+            pal.text_secondary
         } else {
-            pal.text_dim
+            pal.text_muted
         };
         p.rect_stroke(check, 3.0, Stroke::new(1.0, edge), StrokeKind::Inside);
         if some_selected {
@@ -179,7 +179,7 @@ fn draw_header(ui: &mut Ui, cx: &mut Cx<'_>, r: Rect, cols: &Columns) {
         let color = if active || response.hovered() {
             pal.text
         } else {
-            pal.text_dim
+            pal.text_muted
         };
         text_left(&p, text_x, cy, label, &th.font, color, x1 - text_x - 24.0);
 
@@ -188,7 +188,7 @@ fn draw_header(ui: &mut Ui, cx: &mut Cx<'_>, r: Rect, cols: &Columns) {
                 SortDir::Asc => Icon::ArrowUp,
                 SortDir::Desc => Icon::ArrowDown,
             };
-            icons::paint_scaled(&p, pal, arrow, pos2(x1 - 19.5, cy), pal.text_section, 0.7);
+            icons::paint_scaled(&p, pal, arrow, pos2(x1 - 19.5, cy), pal.text_secondary, 0.7);
         }
         if response.clicked() {
             cx.core.toggle_sort(key);
@@ -197,10 +197,10 @@ fn draw_header(ui: &mut Ui, cx: &mut Cx<'_>, r: Rect, cols: &Columns) {
 
     // Static columns.
     if let Some(x) = cols.folders {
-        text_left(&p, x + pad, cy, "Folders", &th.font, pal.text_dim, 60.0);
+        text_left(&p, x + pad, cy, "Folders", &th.font, pal.text_muted, 60.0);
     }
     if let Some(x) = cols.files {
-        text_left(&p, x + pad, cy, "Files", &th.font, pal.text_dim, 50.0);
+        text_left(&p, x + pad, cy, "Files", &th.font, pal.text_muted, 50.0);
     }
 
     // Drag a divider to resize the column on its right; double-click resets it. The columns
@@ -233,18 +233,6 @@ fn draw_header(ui: &mut Ui, cx: &mut Cx<'_>, r: Rect, cols: &Columns) {
         } else if response.dragged() {
             *field = (*field - response.drag_delta().x).clamp(ColW::MIN, ColW::MAX);
         }
-    }
-
-    // Filter affordance in the Type column (decorative in this prototype).
-    if let Some(date) = cols.date.filter(|_| cols.ty.is_some()) {
-        icons::paint_scaled(
-            &p,
-            pal,
-            Icon::Filter,
-            pos2(date - 22.5, cy),
-            pal.text_section,
-            0.8,
-        );
     }
 }
 
@@ -352,7 +340,7 @@ fn message(ui: &Ui, area: Rect, text: &str, cx: &Cx<'_>) {
         Align2::CENTER_CENTER,
         text,
         cx.theme.font.clone(),
-        cx.theme.palette.text_dim,
+        cx.theme.palette.text_muted,
     );
 }
 
@@ -378,7 +366,7 @@ fn row(
     let Some(entry) = view.get(i) else {
         // Page still loading: keep the zebra rhythm, draw nothing else.
         if i % 2 == 1 {
-            ui.painter().rect_filled(row_rect, m.radius, pal.stripe);
+            ui.painter().rect_filled(row_rect, m.radius, pal.row_alt);
         }
         return;
     };
@@ -397,7 +385,7 @@ fn row(
         } else if response.hovered() {
             Some(pal.hover)
         } else if i % 2 == 1 {
-            Some(pal.stripe)
+            Some(pal.row_alt)
         } else {
             None
         };
@@ -441,7 +429,7 @@ fn row(
                     cy,
                     &entry.parent,
                     &th.font,
-                    pal.text_dim.gamma_multiply(0.7),
+                    pal.text_muted.gamma_multiply(0.7),
                     room,
                 );
             }
@@ -458,7 +446,7 @@ fn row(
                 cy,
                 &entry.type_label,
                 &th.font,
-                pal.text_dim,
+                pal.text_muted,
                 date - type_x - 10.0,
             );
         }
@@ -470,7 +458,7 @@ fn row(
                 cy,
                 &entry.modified_text,
                 &th.font,
-                pal.text_dim,
+                pal.text_muted,
                 cols.date_right() - date_x - 6.0,
             );
         }
@@ -484,7 +472,7 @@ fn row(
                 } else {
                     "".into()
                 };
-                text_left(p, x + pad, cy, &t, &th.font, pal.text_dim, 50.0);
+                text_left(p, x + pad, cy, &t, &th.font, pal.text_muted, 50.0);
             }
             if let Some(x) = cols.files {
                 let t = if entry.kind == Kind::Folder {
@@ -492,7 +480,7 @@ fn row(
                 } else {
                     "".into()
                 };
-                text_left(p, x + pad, cy, &t, &th.font, pal.text_dim, 50.0);
+                text_left(p, x + pad, cy, &t, &th.font, pal.text_muted, 50.0);
             }
         }
         text_right(
@@ -501,7 +489,7 @@ fn row(
             cy,
             &entry.size_text,
             &th.font,
-            pal.text_dim,
+            pal.text_muted,
             70.0,
         );
     }
@@ -633,14 +621,14 @@ fn draw_icon(ui: &mut Ui, cx: &mut Cx<'_>, entry: &EntryRef, c: Pos2) {
 }
 
 /// Inline rename editor. Enter commits, Esc cancels, losing focus commits.
-fn rename_box(ui: &mut Ui, cx: &mut Cx<'_>, rect: Rect) {
+pub(super) fn rename_box(ui: &mut Ui, cx: &mut Cx<'_>, rect: Rect) {
     let th = cx.theme;
     let pal = &th.palette;
     let id = Id::new("rename_edit");
     let Some(r) = cx.state.rename.as_mut() else {
         return;
     };
-    ui.painter().rect_filled(rect, 3.0, pal.main);
+    ui.painter().rect_filled(rect, 3.0, pal.background);
     ui.painter()
         .rect_stroke(rect, 3.0, Stroke::new(1.0, pal.accent), StrokeKind::Inside);
     let mut edit_ui = ui.new_child(UiBuilder::new().max_rect(rect.shrink2(vec2(4.0, 1.0))));

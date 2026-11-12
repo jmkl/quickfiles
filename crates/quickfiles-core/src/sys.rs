@@ -10,6 +10,23 @@ use std::{
 
 use crate::model::{DriveInfo, Place};
 
+/// Appends a line to `name` in the data folder (a small file a user can send when something
+/// cannot be seen from outside). The file is cut back to nothing once it passes 64 KiB.
+pub fn debug_log(name: &str, line: &str) {
+    use std::io::Write;
+    let path = data_dir().join(name);
+    if std::fs::metadata(&path).is_ok_and(|m| m.len() > 64 * 1024) {
+        let _ = std::fs::remove_file(&path);
+    }
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+    {
+        let _ = writeln!(f, "{line}");
+    }
+}
+
 pub fn data_dir() -> PathBuf {
     let dir = dirs::data_local_dir()
         .unwrap_or_else(std::env::temp_dir)

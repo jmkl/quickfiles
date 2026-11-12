@@ -423,6 +423,16 @@ impl Core {
         }
     }
 
+    /// The folder tab `i` is showing (`None` in Search mode; empty for "This PC").
+    pub fn tab_dir(&self, i: usize) -> Option<PathBuf> {
+        let nav = if i == self.active_tab {
+            &self.nav
+        } else {
+            &self.tabs[i]
+        };
+        nav.location().cloned()
+    }
+
     /// Switches to the tab that is already in slot `i` (the live tab was saved by the caller).
     fn load_tab(&mut self, i: usize) {
         self.active_tab = i;
@@ -448,11 +458,13 @@ impl Core {
         self.switch_tab(i);
     }
 
-    /// New tab next to the current one, starting in Search mode.
+    /// New tab next to the current one, opened in the current folder (Search mode when there is none).
     pub fn new_tab(&mut self) {
         self.save_tab();
         let q = self.nav.query();
-        let mut nav = Nav::new(None, q.sort, q.show_hidden);
+        // The new tab opens where the one it was made from is looking.
+        let start = self.nav.location().cloned();
+        let mut nav = Nav::new(start, q.sort, q.show_hidden);
         if q.regex {
             nav.toggle_regex();
         }
@@ -521,6 +533,19 @@ impl Core {
         let (tx, id) = (self.tx.clone(), self.current_id.clone());
         move || {
             let _ = tx.send(Command::Refresh(id.load(Ordering::Relaxed)));
+            // The file index (Everything) learns about a big delete or copy a little later, so a
+            // single refresh can still list the old content. Look again a few times.
+            thread::spawn(move || {
+                for wait_ms in [400u64, 800, 1800, 4000] {
+                    thread::sleep(Duration::from_millis(wait_ms));
+                    if tx
+                        .send(Command::Refresh(id.load(Ordering::Relaxed)))
+                        .is_err()
+                    {
+                        return;
+                    }
+                }
+            });
         }
     }
 
@@ -597,6 +622,15 @@ impl Core {
         };
         self.jobs
             .start(kind, paths, Some(dest), policy, self.refresher());
+    }
+
+    /// Download images dragged out of a browser into `dest`. Each one is its own job (shown in
+    /// the toolbar with progress); the folder refreshes when it finishes.
+    pub fn download_images(&mut self, sources: Vec<crate::dropdata::ImageSource>, dest: PathBuf) {
+        for source in sources {
+            self.jobs
+                .start_download(source, dest.clone(), self.refresher());
+        }
     }
 
     pub fn transfer_conflicts(&self, paths: &[PathBuf], dest: &Path) -> usize {

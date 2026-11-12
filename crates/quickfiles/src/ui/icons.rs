@@ -27,7 +27,7 @@ pub enum Icon {
     ArrowUp,
     ArrowDown,
     // Toolbar / status
-    Lock,
+    Refresh,
     Bookmark,
     Clock,
     Filter,
@@ -131,19 +131,27 @@ pub fn paint_scaled(p: &Painter, pal: &Palette, icon: Icon, c: Pos2, tint: Color
             line(&[(-5.0, 1.0), (0.0, 6.0), (5.0, 1.0)], s);
         }
 
-        Icon::Lock => {
-            outline(r4(-5.5, -1.0, 5.5, 7.0), 1.5, s);
-            line(
-                &[
-                    (-3.0, -1.0),
-                    (-3.0, -4.0),
-                    (-1.5, -6.0),
-                    (1.5, -6.0),
-                    (3.0, -4.0),
-                    (3.0, -1.0),
-                ],
-                s,
-            );
+        Icon::Refresh => {
+            // Almost a full circle, clockwise from 40 to 320 degrees, with an arrow head at the
+            // end where the gap is.
+            let r = 5.5_f32;
+            let arc: Vec<(f32, f32)> = (0..=14)
+                .map(|i| {
+                    let a = (40.0 + i as f32 * (280.0 / 14.0)).to_radians();
+                    (r * a.cos(), r * a.sin())
+                })
+                .collect();
+            line(&arc, s);
+            let a = 320.0_f32.to_radians();
+            let tip = (r * a.cos() + 1.6 * -a.sin(), r * a.sin() + 1.6 * a.cos());
+            let (t, n) = ((-a.sin(), a.cos()), (a.cos(), a.sin()));
+            let wing = |side: f32| {
+                (
+                    tip.0 - 3.4 * t.0 + side * 2.6 * n.0,
+                    tip.1 - 3.4 * t.1 + side * 2.6 * n.1,
+                )
+            };
+            line(&[wing(1.0), tip, wing(-1.0)], s);
         }
         Icon::Bookmark => poly(
             &[
@@ -185,23 +193,23 @@ pub fn paint_scaled(p: &Painter, pal: &Palette, icon: Icon, c: Pos2, tint: Color
             fill(
                 r4(-8.0, -6.0, -1.0, -3.0),
                 1.5,
-                pal.folder.gamma_multiply(0.85),
+                pal.icon_folder.gamma_multiply(0.85),
             );
-            fill(r4(-8.0, -4.5, 8.0, 6.0), 2.0, pal.folder);
+            fill(r4(-8.0, -4.5, 8.0, 6.0), 2.0, pal.icon_folder);
         }
         Icon::FileHtml => {
-            fill(r4(-6.0, -8.0, 6.0, 8.0), 1.5, pal.file_html);
+            fill(r4(-6.0, -8.0, 6.0, 8.0), 1.5, pal.icon_file_html);
             p.circle_filled(pt(0.0, 1.0), 3.0 * k, pal.accent);
         }
         Icon::FileJs => {
-            fill(r4(-8.0, -8.0, 8.0, 8.0), 2.0, pal.file_js);
+            fill(r4(-8.0, -8.0, 8.0, 8.0), 2.0, pal.icon_file_js);
             line(
                 &[(-3.5, -3.5), (3.5, -3.5), (-3.5, 3.5), (3.5, 3.5)],
                 Stroke::new(1.3, Color32::WHITE),
             );
         }
         Icon::FileJson => {
-            fill(r4(-8.0, -8.0, 8.0, 8.0), 2.0, pal.file_json);
+            fill(r4(-8.0, -8.0, 8.0, 8.0), 2.0, pal.icon_file_json);
             line(
                 &[
                     (3.0, -3.5),
@@ -211,32 +219,35 @@ pub fn paint_scaled(p: &Painter, pal: &Palette, icon: Icon, c: Pos2, tint: Color
                     (2.0, 3.5),
                     (-3.0, 3.5),
                 ],
-                Stroke::new(1.3, pal.file_js),
+                Stroke::new(1.3, pal.icon_file_js),
             );
         }
         Icon::FileGeneric => {
-            fill(r4(-6.0, -8.0, 6.0, 8.0), 1.5, pal.icon_nav);
-            line(&[(-3.0, -2.0), (3.0, -2.0)], Stroke::new(1.0, pal.main));
-            line(&[(-3.0, 2.0), (3.0, 2.0)], Stroke::new(1.0, pal.main));
+            fill(r4(-6.0, -8.0, 6.0, 8.0), 1.5, pal.icon_muted);
+            line(
+                &[(-3.0, -2.0), (3.0, -2.0)],
+                Stroke::new(1.0, pal.background),
+            );
+            line(&[(-3.0, 2.0), (3.0, 2.0)], Stroke::new(1.0, pal.background));
         }
         Icon::Drive => {
             fill(
                 r4(-5.0, -6.0, 5.0, -2.0),
                 1.0,
-                pal.drive.gamma_multiply(0.6),
+                pal.icon_drive.gamma_multiply(0.6),
             );
-            fill(r4(-7.0, -2.0, 7.0, 6.0), 2.0, pal.drive);
-            p.circle_filled(pt(4.0, 3.0), 0.9 * k, pal.sidebar);
+            fill(r4(-7.0, -2.0, 7.0, 6.0), 2.0, pal.icon_drive);
+            p.circle_filled(pt(4.0, 3.0), 0.9 * k, pal.panel);
         }
         Icon::DriveWindows => {
             for (x, y) in [(-7.0, -7.0), (0.5, -7.0), (-7.0, 0.5), (0.5, 0.5)] {
-                fill(r4(x, y, x + 6.5, y + 6.5), 0.5, pal.drive_win);
+                fill(r4(x, y, x + 6.5, y + 6.5), 0.5, pal.icon_drive_system);
             }
         }
         Icon::ThisPc => {
-            fill(r4(-8.0, -6.0, 8.0, 4.0), 1.5, pal.pc);
-            fill(r4(-1.5, 4.0, 1.5, 6.5), 0.0, pal.pc);
-            line(&[(-4.0, 7.0), (4.0, 7.0)], Stroke::new(1.5, pal.pc));
+            fill(r4(-8.0, -6.0, 8.0, 4.0), 1.5, pal.icon_pc);
+            fill(r4(-1.5, 4.0, 1.5, 6.5), 0.0, pal.icon_pc);
+            line(&[(-4.0, 7.0), (4.0, 7.0)], Stroke::new(1.5, pal.icon_pc));
         }
     }
 }

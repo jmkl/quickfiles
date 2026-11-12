@@ -197,7 +197,7 @@ pub fn overlay(ui: &mut Ui, cx: &mut Cx<'_>, full: Rect) {
         pos2(full.right() - width - 10.0, full.top() + 44.0),
         vec2(width, height),
     );
-    p.rect_filled(rect, 8.0, pal.chrome.gamma_multiply(0.96));
+    p.rect_filled(rect, 8.0, pal.surface.gamma_multiply(0.96));
     p.rect_stroke(rect, 8.0, Stroke::new(1.0, pal.border), StrokeKind::Inside);
     for (i, line) in lines.iter().enumerate() {
         p.text(
@@ -213,7 +213,7 @@ pub fn overlay(ui: &mut Ui, cx: &mut Cx<'_>, full: Rect) {
         Align2::LEFT_TOP,
         "F12 hide · Ctrl+F12 copy report · Shift+F12 reset",
         font,
-        pal.text_dim,
+        pal.text_muted,
     );
 }
 

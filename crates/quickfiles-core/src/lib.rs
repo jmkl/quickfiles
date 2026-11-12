@@ -5,15 +5,24 @@
 
 mod compose;
 mod core;
+pub mod download;
+pub mod dropdata;
 pub mod engine;
 mod fmt;
+pub mod global_hotkey;
+mod http;
 pub mod images;
 pub mod jobs;
 mod model;
 mod nav;
+pub mod ole_drag;
+pub mod ole_drop;
 mod paging;
+pub mod pathinput;
+pub mod single_instance;
 pub mod store;
 pub mod sys;
+pub mod tray;
 mod view;
 mod watch;
 

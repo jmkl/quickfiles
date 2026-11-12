@@ -25,7 +25,7 @@ pub fn show(ui: &mut Ui, cx: &mut Cx<'_>, area: Rect) {
         pal,
         Icon::Search,
         mid - vec2(0.0, 70.0),
-        pal.text_dim,
+        pal.text_muted,
         4.0,
     );
     p.text(
@@ -35,11 +35,11 @@ pub fn show(ui: &mut Ui, cx: &mut Cx<'_>, area: Rect) {
         th.font.clone(),
         pal.text,
     );
-    let g = galley(&p, &reason, &th.font, pal.text_dim, area.width() - 80.0);
+    let g = galley(&p, &reason, &th.font, pal.text_muted, area.width() - 80.0);
     p.galley(
         pos2(mid.x - g.size().x * 0.5, mid.y + 22.0),
         g,
-        pal.text_dim,
+        pal.text_muted,
     );
 
     let mut buttons: Vec<(&'static str, Action)> = Vec::new();
@@ -57,7 +57,7 @@ pub fn show(ui: &mut Ui, cx: &mut Cx<'_>, area: Rect) {
         let rect = Rect::from_min_size(pos2(x, mid.y + 62.0), vec2(w, h));
         let r = hit(ui, rect, ("gate_btn", i), Sense::click());
         let primary = i == 0;
-        let fill = if primary { pal.accent } else { pal.track };
+        let fill = if primary { pal.accent } else { pal.control };
         let fill = if r.hovered() {
             fill.gamma_multiply(1.15)
         } else {
@@ -68,7 +68,7 @@ pub fn show(ui: &mut Ui, cx: &mut Cx<'_>, area: Rect) {
             p.rect_stroke(
                 rect,
                 th.metrics.radius,
-                Stroke::new(1.0, pal.track_border),
+                Stroke::new(1.0, pal.control_border),
                 StrokeKind::Inside,
             );
         }
@@ -77,7 +77,7 @@ pub fn show(ui: &mut Ui, cx: &mut Cx<'_>, area: Rect) {
             Align2::CENTER_CENTER,
             label,
             th.font.clone(),
-            pal.icon_strong,
+            pal.icon_active,
         );
         if r.clicked() {
             cx.actions.push(action);
