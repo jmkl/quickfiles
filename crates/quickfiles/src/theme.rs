@@ -75,6 +75,14 @@ pub struct Palette {
     pub icon_file_html: Color32,
     pub icon_file_js: Color32,
     pub icon_file_json: Color32,
+    // Coloured file icons (Nerd Font glyphs)
+    pub icon_file_code: Color32,
+    pub icon_file_script: Color32,
+    pub icon_file_image: Color32,
+    pub icon_file_media: Color32,
+    pub icon_file_archive: Color32,
+    pub icon_file_document: Color32,
+    pub icon_file_pdf: Color32,
 }
 
 impl Palette {
@@ -110,6 +118,13 @@ impl Palette {
         icon_file_html: rgb(0xec, 0xef, 0xf1),
         icon_file_js: rgb(0x1b, 0x1c, 0x1e),
         icon_file_json: rgb(0xe8, 0x8a, 0x2e),
+        icon_file_code: rgb(0x6c, 0xb6, 0xff),
+        icon_file_script: rgb(0xf0, 0xd0, 0x60),
+        icon_file_image: rgb(0xc7, 0x92, 0xea),
+        icon_file_media: rgb(0xf7, 0x8c, 0x6c),
+        icon_file_archive: rgb(0xd1, 0x9a, 0x66),
+        icon_file_document: rgb(0x5b, 0x9b, 0xd5),
+        icon_file_pdf: rgb(0xe0, 0x5d, 0x5d),
     };
 }
 
@@ -190,6 +205,13 @@ palette_fields!(
     icon_file_html,
     icon_file_js,
     icon_file_json,
+    icon_file_code,
+    icon_file_script,
+    icon_file_image,
+    icon_file_media,
+    icon_file_archive,
+    icon_file_document,
+    icon_file_pdf,
 );
 
 /// Every size / offset used by the UI (logical pixels).
@@ -394,17 +416,31 @@ impl Theme {
     }
 }
 
-/// Use Segoe UI when available (Windows) so metrics match the reference; otherwise egui's default.
+/// The font family of the file / folder icons (Nerd Font symbols).
+pub fn icon_family() -> FontFamily {
+    FontFamily::Name("icons".into())
+}
+
+/// Fonts: the Nerd Font symbols for file icons (always), and Segoe UI for text when available
+/// (Windows) so metrics match the reference; otherwise egui's default.
 fn install_fonts(ctx: &egui::Context) {
-    let Ok(bytes) = std::fs::read(r"C:\Windows\Fonts\segoeui.ttf") else {
-        return;
-    };
     let mut fonts = FontDefinitions::default();
+    fonts.font_data.insert(
+        "nerd-symbols".to_owned(),
+        Arc::new(FontData::from_static(include_bytes!(
+            "../assets/SymbolsNerdFontMono-Regular.ttf"
+        ))),
+    );
     fonts
-        .font_data
-        .insert("segoe-ui".to_owned(), Arc::new(FontData::from_owned(bytes)));
-    if let Some(list) = fonts.families.get_mut(&FontFamily::Proportional) {
-        list.insert(0, "segoe-ui".to_owned());
+        .families
+        .insert(icon_family(), vec!["nerd-symbols".to_owned()]);
+    if let Ok(bytes) = std::fs::read(r"C:\Windows\Fonts\segoeui.ttf") {
+        fonts
+            .font_data
+            .insert("segoe-ui".to_owned(), Arc::new(FontData::from_owned(bytes)));
+        if let Some(list) = fonts.families.get_mut(&FontFamily::Proportional) {
+            list.insert(0, "segoe-ui".to_owned());
+        }
     }
     ctx.set_fonts(fonts);
 }

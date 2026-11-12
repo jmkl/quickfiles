@@ -373,6 +373,12 @@ impl Hotkeys {
         let typing = ctx.memory(|m| {
             matches!(m.focused(), Some(f) if f == Id::new("title_search") || f == Id::new("rename_edit") || f == Id::new("path_edit"))
         });
+        // The address bar owns every key (Up / Down / Tab move in its suggestion list), unlike the
+        // search box, where Up / Down still move the file selection.
+        if ctx.memory(|m| matches!(m.focused(), Some(f) if f == Id::new("path_edit"))) {
+            self.pending.clear();
+            return;
+        }
         if typing || self.since.elapsed() > PENDING_TIMEOUT {
             self.pending.clear();
         }

@@ -111,7 +111,65 @@ pub fn overlay(ui: &mut Ui, cx: &mut Cx<'_>, full: Rect) {
             p.galley(rect.min + vec2(10.0, 5.0), g, pal.text);
         }
         ctx.request_repaint();
-        if ctx.input(|i| i.pointer.any_released() || i.key_pressed(Key::Escape)) {
+        let (released, escape, at, copy) = ctx.input(|i| {
+            (
+                i.pointer.any_released(),
+                i.key_pressed(Key::Escape),
+                i.pointer.hover_pos().or(i.pointer.latest_pos()),
+                i.modifiers.command,
+            )
+        });
+        if released && !escape {
+            // Dropped on a tab button: into the folder that tab shows.
+            let hit = at.and_then(|p| cx.state.tab_hits.iter().find(|(r, _)| r.contains(p)));
+            match hit.map(|(_, dir)| dir.clone()) {
+                Some(Some(dest)) if valid_target(&drag, &dest) => {
+                    cx.actions.push(Action::Transfer {
+                        paths: drag.paths.clone(),
+                        dest,
+                        copy,
+                        policy: None,
+                    });
+                }
+                Some(_) => cx
+                    .state
+                    .say("That tab is not showing a folder to drop into".to_owned()),
+                // Not on a tab: dropped on the list itself (empty space or a file row) goes into
+                // the open folder, unless a folder row already took it.
+                None => {
+                    let in_list =
+                        at.is_some_and(|p| cx.state.list_area.is_some_and(|r| r.contains(p)));
+                    let taken = cx
+                        .actions
+                        .iter()
+                        .any(|a| matches!(a, Action::Transfer { .. }));
+                    let here = cx
+                        .core
+                        .nav()
+                        .location()
+                        .filter(|d| valid_target(&drag, d))
+                        .cloned();
+                    if let (true, false, Some(dest)) = (in_list, taken, here) {
+                        // Items already in this folder stay put (a drop back where it started).
+                        let paths: Vec<_> = drag
+                            .paths
+                            .iter()
+                            .filter(|p| p.parent() != Some(dest.as_path()))
+                            .cloned()
+                            .collect();
+                        if !paths.is_empty() {
+                            cx.actions.push(Action::Transfer {
+                                paths,
+                                dest,
+                                copy,
+                                policy: None,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        if released || escape {
             cx.state.drag = None;
         }
     }

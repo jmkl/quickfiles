@@ -611,13 +611,7 @@ fn draw_icon(ui: &mut Ui, cx: &mut Cx<'_>, entry: &EntryRef, c: Pos2) {
         );
         return;
     }
-    icons::paint(
-        ui.painter(),
-        &th.palette,
-        Icon::for_category(entry.category),
-        c,
-        th.palette.text,
-    );
+    super::fileicon::paint(ui.painter(), &th.palette, entry, c, 17.0);
 }
 
 /// Inline rename editor. Enter commits, Esc cancels, losing focus commits.

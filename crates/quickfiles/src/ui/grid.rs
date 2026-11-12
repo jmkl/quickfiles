@@ -236,14 +236,7 @@ fn draw_thumb(ui: &mut Ui, cx: &mut Cx<'_>, entry: &EntryRef, area: Rect) {
         );
         return;
     }
-    icons::paint_scaled(
-        ui.painter(),
-        &th.palette,
-        Icon::for_category(entry.category),
-        area.center(),
-        th.palette.text,
-        3.0,
-    );
+    super::fileicon::paint(ui.painter(), &th.palette, entry, area.center(), 48.0);
 }
 
 /// "Sort by" chips in the header row; clicking the active one flips the direction.

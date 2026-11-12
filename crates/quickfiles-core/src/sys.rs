@@ -61,7 +61,62 @@ pub fn places() -> Vec<Place> {
     out
 }
 
+/// Opens `path` with its default program (or the "Open with" chooser when there is none).
+/// The shell call can take a long time (it waits on the handler: a cold start of a big app, a
+/// packaged app activating, antivirus scanning a download), so it runs on its own thread and
+/// the window never waits for it. Failures go to `open.log` in the data folder.
 pub fn open(path: &Path) -> Result<(), String> {
+    let path = path.to_path_buf();
+    std::thread::Builder::new()
+        .name("qf-open".to_owned())
+        .spawn(move || {
+            if let Err(e) = shell_open(&path) {
+                debug_log("open.log", &format!("{}: {e}", path.display()));
+            }
+        })
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
+#[cfg(windows)]
+fn shell_open(path: &Path) -> Result<(), String> {
+    use windows::{
+        Win32::{
+            System::Com::{COINIT_APARTMENTTHREADED, COINIT_DISABLE_OLE1DDE, CoInitializeEx},
+            UI::{Shell::ShellExecuteW, WindowsAndMessaging::SW_SHOWNORMAL},
+        },
+        core::{PCWSTR, w},
+    };
+
+    let wide: Vec<u16> = path
+        .as_os_str()
+        .to_string_lossy()
+        .encode_utf16()
+        .chain(Some(0))
+        .collect();
+    // SAFETY: COM is set up the way ShellExecute asks for, on a thread that only does this; the
+    // string is NUL-terminated and outlives the call.
+    let code = unsafe {
+        let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+        ShellExecuteW(
+            None,
+            w!("open"),
+            PCWSTR(wide.as_ptr()),
+            PCWSTR::null(),
+            PCWSTR::null(),
+            SW_SHOWNORMAL,
+        )
+    };
+    // Values up to 32 are errors.
+    if code.0 as isize > 32 {
+        Ok(())
+    } else {
+        Err(format!("ShellExecute failed ({})", code.0 as isize))
+    }
+}
+
+#[cfg(not(windows))]
+fn shell_open(path: &Path) -> Result<(), String> {
     open::that_detached(path).map_err(|e| e.to_string())
 }
 

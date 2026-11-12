@@ -7,6 +7,7 @@ use quickfiles_core::{DriveInfo, display_name};
 
 use super::{
     Action, Cx, dnd,
+    fileicon::{self, Tone},
     icons::{self, Icon},
     widgets::{click_sense, text_left, vline},
 };
@@ -55,7 +56,14 @@ fn sections(ui: &mut Ui, cx: &mut Cx<'_>) {
             hint(ui, cx, "Folders you open show up here");
         }
         for path in data.recents.iter().take(10) {
-            side_item(ui, cx, Icon::Folder, &display_name(path), path, false);
+            side_item(
+                ui,
+                cx,
+                Mark::Glyph(fileicon::FOLDER_GLYPH),
+                &display_name(path),
+                path,
+                false,
+            );
         }
     }
 
@@ -71,7 +79,14 @@ fn sections(ui: &mut Ui, cx: &mut Cx<'_>) {
             hint(ui, cx, "Bookmark the folder you are in");
         }
         for b in &data.bookmarks {
-            side_item(ui, cx, Icon::Folder, &b.label, &b.path, true);
+            side_item(
+                ui,
+                cx,
+                Mark::Glyph(fileicon::FOLDER_GLYPH),
+                &b.label,
+                &b.path,
+                true,
+            );
         }
     }
 
@@ -91,12 +106,12 @@ fn sections(ui: &mut Ui, cx: &mut Cx<'_>) {
     ui.add_space(gap);
     if section_header(ui, th, Icon::Pin, "Places", &mut cx.state.section_open[3]) {
         for (label, path) in &places {
-            let icon = if path.as_os_str().is_empty() {
-                Icon::ThisPc
+            let mark = if path.as_os_str().is_empty() {
+                Mark::Painted(Icon::ThisPc)
             } else {
-                Icon::Folder
+                Mark::Glyph(fileicon::place(label).unwrap_or(fileicon::FOLDER_GLYPH))
             };
-            side_item(ui, cx, icon, label, path, false);
+            side_item(ui, cx, mark, label, path, false);
         }
     }
     ui.add_space(gap);
@@ -168,7 +183,14 @@ fn section_header(ui: &mut Ui, th: &Theme, icon: Icon, title: &str, open: &mut b
     *open
 }
 
-fn side_item(ui: &mut Ui, cx: &mut Cx<'_>, icon: Icon, label: &str, path: &Path, removable: bool) {
+/// What marks a sidebar row: a painted icon, or a Nerd Font glyph.
+#[derive(Clone, Copy)]
+enum Mark {
+    Painted(Icon),
+    Glyph((char, Tone)),
+}
+
+fn side_item(ui: &mut Ui, cx: &mut Cx<'_>, mark: Mark, label: &str, path: &Path, removable: bool) {
     let th = cx.theme;
     let (pal, m) = (&th.palette, &th.metrics);
     let (rect, response) =
@@ -186,13 +208,11 @@ fn side_item(ui: &mut Ui, cx: &mut Cx<'_>, icon: Icon, label: &str, path: &Path,
     } else if response.hovered() {
         p.rect_filled(rect.shrink2(vec2(4.0, 0.0)), m.radius, pal.hover);
     }
-    icons::paint(
-        p,
-        pal,
-        icon,
-        pos2(rect.left() + m.side_icon_x, cy),
-        pal.text,
-    );
+    let at = pos2(rect.left() + m.side_icon_x, cy);
+    match mark {
+        Mark::Painted(icon) => icons::paint(p, pal, icon, at, pal.text),
+        Mark::Glyph(g) => fileicon::paint_glyph(p, pal, g, at, 16.0),
+    }
     text_left(
         p,
         rect.left() + m.side_text_x,

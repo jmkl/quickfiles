@@ -96,14 +96,7 @@ pub fn show(ui: &mut Ui, cx: &mut Cx<'_>, r: Rect) {
                 Color32::WHITE,
             );
         }
-        None => icons::paint_scaled(
-            &p,
-            pal,
-            Icon::for_category(entry.category),
-            card.center(),
-            pal.text,
-            3.0,
-        ),
+        None => super::fileicon::paint(&p, pal, &entry, card.center(), 48.0),
     }
 
     // Name + type, centred

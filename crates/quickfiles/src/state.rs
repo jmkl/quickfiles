@@ -167,6 +167,10 @@ pub struct State {
     /// The folder under the pointer during the last frame of such a drag; set by `dnd::target`.
     /// A drop goes there; with none, to the selected folder or the open one.
     pub drop_over: Option<PathBuf>,
+    /// Tab buttons of this frame and the folder each shows, for dropping onto a tab.
+    /// The file list (header and rows) of this frame: dropping there goes into the open folder.
+    pub list_area: Option<eframe::egui::Rect>,
+    pub tab_hits: Vec<(eframe::egui::Rect, Option<PathBuf>)>,
 }
 
 impl State {
@@ -227,6 +231,8 @@ impl State {
             drop_dest: None,
             drop_pos: None,
             drop_over: None,
+            list_area: None,
+            tab_hits: Vec::new(),
         }
     }
 

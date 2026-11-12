@@ -5,6 +5,7 @@
 mod dnd;
 mod drives;
 mod file_list;
+mod fileicon;
 mod gate;
 mod grid;
 mod icons;
@@ -188,6 +189,7 @@ pub fn draw(ui: &mut Ui, cx: &mut Cx<'_>) {
         );
         gate::show(ui, cx, body);
     } else {
+        cx.state.list_area = Some(regions.header.union(regions.list));
         file_list::show(ui, cx, regions.header, regions.list);
         if regions.tabs.height() > 0.0 {
             tabs::show(ui, cx, regions.tabs);

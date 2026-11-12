@@ -858,6 +858,7 @@ impl eframe::App for App {
         }
         // Drawing sets it again for the folder under the pointer.
         self.state.drop_over = None;
+        self.state.tab_hits.clear();
 
         // Hotkeys are applied before drawing, so their effect shows in this very frame.
         let mut actions = Vec::new();

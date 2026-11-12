@@ -50,24 +50,25 @@ pub fn show(ui: &mut Ui, cx: &mut Cx<'_>, r: Rect) {
             color,
         );
 
-        // Drawn after the tab itself, so the drop highlight is on top of it.
-        if cx.state.drag.is_some() || cx.state.drop_hover.is_some() {
-            let released = ui.input(|inp| inp.pointer.any_released());
+        // Drawn after the tab itself, so the drop highlight is on top of it. Releasing a drag from
+        // inside the app on a tab is handled by `dnd::overlay` from `tab_hits`.
+        let dir = cx.core.tab_dir(i);
+        cx.state.tab_hits.push((rect, dir.clone()));
+        if cx.state.drag.is_some() {
             let over = ui
                 .input(|inp| inp.pointer.hover_pos())
                 .is_some_and(|p| rect.contains(p));
-            if released && over {
-                quickfiles_core::sys::debug_log(
-                    "dnd.log",
-                    &format!(
-                        "released on tab {i} (active {active}): dir {:?}, dragging {}",
-                        cx.core.tab_dir(i),
-                        cx.state.drag.as_ref().map_or(0, |d| d.paths.len()),
-                    ),
-                );
+            if over {
+                let ok = dir.as_ref().is_some_and(|d| !d.as_os_str().is_empty());
+                let color = if ok { pal.accent } else { pal.danger };
+                p.rect_stroke(rect, 6.0, Stroke::new(1.5, color), StrokeKind::Inside);
             }
-            if let Some(dir) = cx.core.tab_dir(i) {
-                dnd::target(ui, cx, rect, &dir);
+            if i != active && hover_dwell(ui, i, rect, 0.7) {
+                cx.actions.push(Action::SwitchTab(i));
+            }
+        } else if cx.state.drop_hover.is_some() {
+            if let Some(d) = dir {
+                dnd::target(ui, cx, rect, &d);
             }
             if i != active && hover_dwell(ui, i, rect, 0.7) {
                 cx.actions.push(Action::SwitchTab(i));

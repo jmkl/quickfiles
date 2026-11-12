@@ -1,11 +1,10 @@
-//! Vector icons drawn with the egui painter, so the app needs no image assets or icon font.
+//! Vector icons drawn with the egui painter (toolbar, title bar, sidebar). File and folder icons
+//! in the lists are Nerd Font glyphs, see `fileicon`.
 //! Every icon is authored on a 16x16 grid centred on the given point.
 //! Coloured icons (folder, drives, file badges) take their colours from the palette and
 //! ignore `tint`.
 
 use eframe::egui::{Color32, Painter, Pos2, Rect, Shape, Stroke, StrokeKind, vec2};
-
-use quickfiles_core::Category;
 
 use crate::theme::Palette;
 
@@ -42,19 +41,6 @@ pub enum Icon {
     Drive,
     DriveWindows,
     ThisPc,
-}
-
-impl Icon {
-    pub fn for_category(category: Category) -> Self {
-        match category {
-            Category::Folder => Self::Folder,
-            Category::Drive => Self::Drive,
-            Category::Html => Self::FileHtml,
-            Category::Script | Category::Code => Self::FileJs,
-            Category::Json => Self::FileJson,
-            _ => Self::FileGeneric,
-        }
-    }
 }
 
 pub fn paint(p: &Painter, pal: &Palette, icon: Icon, c: Pos2, tint: Color32) {
