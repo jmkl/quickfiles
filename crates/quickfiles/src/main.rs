@@ -9,6 +9,7 @@ mod config;
 mod hotkeys;
 mod ids;
 mod keyseq;
+mod opener;
 mod state;
 mod theme;
 mod ui;

@@ -127,7 +127,7 @@ fn draw(ui: &mut Ui, cx: &mut Cx<'_>, full: Rect, title: &str, hint: &str, rows:
     let shown = (per_col * cols).min(rows.len());
 
     let hint = if shown < rows.len() {
-        format!("+{} more in config.conf · {hint}", rows.len() - shown)
+        format!("+{} more in config.toml · {hint}", rows.len() - shown)
     } else {
         hint.to_owned()
     };

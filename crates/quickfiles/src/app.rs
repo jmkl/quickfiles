@@ -42,20 +42,23 @@ pub struct App {
     /// froze the window.
     window_dirty: Option<std::time::Instant>,
     ctx: egui::Context,
+    /// `[[opener]]` blocks: programs that open some file types.
+    openers: Vec<crate::opener::Opener>,
 }
 
-/// Everything read from `config.conf`.
+/// Everything read from `config.toml`.
 struct Loaded {
     hotkeys: Hotkeys,
     theme: Theme,
     global: Option<Combo>,
+    openers: Vec<crate::opener::Opener>,
     problems: Vec<String>,
 }
 
 /// Default for `[general] global_hotkey`.
 const GLOBAL_DEFAULT: &str = "Ctrl+Alt+Space";
 
-/// Reads `config.conf` (writing a commented one the first time). Never fails: a bad line is
+/// Reads `config.toml` (writing a commented one the first time). Never fails: a bad line is
 /// skipped and listed in `problems`.
 fn load_config() -> Loaded {
     if sys::read_config(config::FILE).is_none() {
@@ -92,11 +95,17 @@ fn load_config() -> Loaded {
     let (theme, p) = Theme::configured(&sections.theme, &sections.themes);
     problems.extend(p);
 
+    let (openers, p) = crate::opener::from_blocks(&sections.openers);
+    problems.extend(p);
+
     let mut global = Combo::parse(GLOBAL_DEFAULT).ok();
     for e in &sections.general {
         match e.key.as_str() {
             "global_hotkey" => {
-                if matches!(e.value.to_ascii_lowercase().as_str(), "none" | "off" | "") {
+                if matches!(
+                    e.value.to_ascii_lowercase().as_str(),
+                    "none" | "off" | "false" | ""
+                ) {
                     global = None;
                 } else {
                     match Combo::parse(&e.value) {
@@ -117,17 +126,19 @@ fn load_config() -> Loaded {
         hotkeys,
         theme,
         global,
+        openers,
         problems,
     }
 }
 
 impl App {
-    /// Ctrl+Shift+R: apply `config.conf` again without restarting.
+    /// Ctrl+Shift+R: apply `config.toml` again without restarting.
     fn reload_config(&mut self) {
         let l = load_config();
         self.theme = l.theme;
         self.theme.restyle(&self.ctx);
         self.hotkeys = l.hotkeys;
+        self.openers = l.openers;
         self.state.help_rows = self.hotkeys.help_rows();
         self.global.set(l.global);
         match l.problems.first() {
@@ -167,6 +178,7 @@ impl App {
         let state = State::new(&core.data());
         let widths = (state.left_w, state.preview_w);
 
+        let openers = loaded.openers;
         let hotkeys = loaded.hotkeys;
         let mut state = state;
         state.help_rows = hotkeys.help_rows();
@@ -192,6 +204,7 @@ impl App {
                 maximized: false,
             }),
             ctx: cc.egui_ctx.clone(),
+            openers,
         }
     }
 
@@ -322,6 +335,10 @@ impl App {
             Action::OpenPath { path, is_dir } => {
                 if is_dir {
                     self.core.open_folder(path);
+                } else if let Some(opener) = crate::opener::find(&self.openers, &path) {
+                    if let Err(e) = opener.launch(&path) {
+                        self.state.say(format!("Could not start the opener: {e}"));
+                    }
                 } else if let Err(e) = self.core.open(&path) {
                     self.state.say(format!("Could not open: {e}"));
                 }

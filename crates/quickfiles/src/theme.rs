@@ -20,7 +20,7 @@ const fn rgb(r: u8, g: u8, b: u8) -> Color32 {
 ///
 /// Names say what a colour is *for*. Colours used all over the UI have generic names (`surface`,
 /// `border`, `text_muted`, `icon`); a colour used by one widget is named after it
-/// (`scrollbar_thumb`, `window_close`). The same names are the keys of `[theme]` in `config.conf`.
+/// (`scrollbar_thumb`, `window_close`). The same names are the keys of `[theme]` in `config.toml`.
 #[derive(Clone, Copy)]
 pub struct Palette {
     // Surfaces (what things are drawn on)
@@ -161,7 +161,7 @@ impl Palette {
     };
 }
 
-/// Names `config.conf` used before the colours were renamed; still accepted.
+/// Names `config.toml` used before the colours were renamed; still accepted.
 const OLD_NAMES: &[(&str, &str)] = &[
     ("chrome", "surface"),
     ("main", "background"),
@@ -183,7 +183,7 @@ const OLD_NAMES: &[(&str, &str)] = &[
     ("file_json", "icon_file_json"),
 ];
 
-/// Name-based access to the palette, so `config.conf` can override any colour.
+/// Name-based access to the palette, so `config.toml` can override any colour.
 macro_rules! palette_fields {
     ($($f:ident),* $(,)?) => {
         impl Palette {

@@ -78,7 +78,7 @@ fn label_of(name: &str) -> String {
     out
 }
 
-/// Every action a shortcut can trigger: (name used in the `[hotkeys]` section of `config.conf`, constructor, fires while
+/// Every action a shortcut can trigger: (name used in the `[hotkeys]` section of `config.toml`, constructor, fires while
 /// typing in a text box).
 const ACTIONS: &[(&str, fn() -> Action, bool)] = &[
     ("ToggleSidebar", || Action::ToggleSidebar, true),
@@ -128,7 +128,7 @@ const ACTIONS: &[(&str, fn() -> Action, bool)] = &[
     ("ReloadConfig", || Action::ReloadConfig, true),
 ];
 
-/// The built-in map. Edit `[hotkeys]` in `config.conf` (same `shortcut = Action` lines) to change it.
+/// The built-in map. Edit `[hotkeys]` in `config.toml` (`"Shortcut" = "Action"` lines) to change it.
 /// Bindings with more modifiers come first, plain keys last.
 pub const DEFAULTS: &[(&str, &str)] = &[
     ("Ctrl+B", "ToggleSidebar"),
@@ -250,7 +250,7 @@ fn action_by_name(name: &str) -> Option<&'static (&'static str, fn() -> Action, 
         .find(|(n, _, _)| n.eq_ignore_ascii_case(name))
 }
 
-/// Names of every action, for the comment in a fresh `config.conf`.
+/// Names of every action, for the comment in a fresh `config.toml`.
 pub fn action_names() -> Vec<&'static str> {
     ACTIONS.iter().map(|a| a.0).collect()
 }

@@ -103,7 +103,7 @@ pub enum Action {
     ResetPerf,
     /// `?` (Shift+/): list of every hotkey, bottom right.
     ToggleHelp,
-    /// Ctrl+Shift+R: re-read `config.conf` (hotkeys, theme, global hotkey).
+    /// Ctrl+Shift+R: re-read `config.toml` (hotkeys, theme, global hotkey).
     ReloadConfig,
     /// Ctrl + mouse wheel: up = grid, down = list.
     SetGrid(bool),

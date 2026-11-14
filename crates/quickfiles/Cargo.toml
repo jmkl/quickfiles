@@ -4,6 +4,7 @@ version = "0.2.0"
 edition = "2024"
 
 [dependencies]
+toml = "0.9"
 eframe = { workspace = true }
 quickfiles-core = { path = "../quickfiles-core" }
 
