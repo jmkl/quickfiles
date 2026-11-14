@@ -4,7 +4,7 @@ use std::{collections::HashSet, sync::Arc};
 
 use eframe::egui;
 use quickfiles_core::{
-    Config, Conflict, Core, JobState, Kind,
+    Config, Conflict, Core, CoreError, JobState, Kind,
     dropdata::Dropped,
     global_hotkey::{Combo, GlobalHotkey},
     key_of_path,
@@ -37,6 +37,10 @@ pub struct App {
     saved_widths: (f32, f32),
     saved_cols: crate::state::ColW,
     window: WindowState,
+    /// When the window size last changed and is not saved yet. Saving waits until the size has
+    /// been still for a moment: a drag-resize changes it every frame, and a file write per frame
+    /// froze the window.
+    window_dirty: Option<std::time::Instant>,
     ctx: egui::Context,
 }
 
@@ -181,6 +185,7 @@ impl App {
             drop_target,
             saved_widths: widths,
             saved_cols,
+            window_dirty: None,
             window: sys::load_window().unwrap_or(WindowState {
                 w: 1152.0,
                 h: 760.0,
@@ -278,6 +283,30 @@ impl App {
             self.state.select_only(entry.key, next);
         }
         self.state.scroll_to_focus = true;
+    }
+
+    /// Selects a just-created file or folder and opens its name for editing. The new item is
+    /// never entered or opened.
+    fn start_rename_of_new(&mut self, made: Result<std::path::PathBuf, CoreError>, what: &str) {
+        match made {
+            Ok(path) => {
+                let key = key_of_path(&path);
+                self.state.selected = HashSet::from([key]);
+                self.state.focused = Some(key);
+                self.state.scroll_to_focus = true;
+                let text = path
+                    .file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_default();
+                self.state.rename = Some(Rename {
+                    key,
+                    path,
+                    text,
+                    fresh: true,
+                });
+            }
+            Err(e) => self.state.say(format!("Could not create {what}: {e}")),
+        }
     }
 
     fn focused_entry(&self) -> Option<quickfiles_core::EntryRef> {
@@ -495,6 +524,30 @@ impl App {
                     }
                 }
             }
+            Action::DragDrop { paths, dest, copy } => {
+                if copy {
+                    self.apply(Action::Transfer {
+                        paths,
+                        dest,
+                        copy,
+                        policy: None,
+                    });
+                    return;
+                }
+                // Dropping an item into the folder it is already in does nothing.
+                let paths: Vec<_> = paths
+                    .into_iter()
+                    .filter(|p| p.parent() != Some(dest.as_path()))
+                    .collect();
+                if paths.is_empty() {
+                    self.state.say(format!(
+                        "Already in {}",
+                        quickfiles_core::display_name(&dest)
+                    ));
+                    return;
+                }
+                self.ask_move(paths, dest);
+            }
             Action::OpenFocused => match self.focused_entry() {
                 Some(e) => self.apply(Action::OpenPath {
                     path: e.path(),
@@ -585,24 +638,14 @@ impl App {
                     }
                 }
             }
-            Action::NewFolder => match self.core.new_folder() {
-                Ok(path) => {
-                    let key = key_of_path(&path);
-                    self.state.selected = HashSet::from([key]);
-                    self.state.focused = Some(key);
-                    self.state.scroll_to_focus = true;
-                    self.state.rename = Some(Rename {
-                        key,
-                        text: path
-                            .file_name()
-                            .map(|n| n.to_string_lossy().into_owned())
-                            .unwrap_or_default(),
-                        path,
-                        fresh: true,
-                    });
-                }
-                Err(e) => self.state.say(format!("Could not create folder: {e}")),
-            },
+            Action::NewFolder => {
+                let made = self.core.new_folder();
+                self.start_rename_of_new(made, "folder");
+            }
+            Action::NewFile => {
+                let made = self.core.new_file();
+                self.start_rename_of_new(made, "file");
+            }
             Action::Reveal => {
                 let target = self
                     .selected_paths()
@@ -643,10 +686,40 @@ impl App {
         }
     }
 
+    /// Asks before a drag-and-drop move: "Move", "Copy instead" or "Cancel".
+    fn ask_move(&mut self, paths: Vec<std::path::PathBuf>, dest: std::path::PathBuf) {
+        let n = paths.len();
+        let what = if n == 1 {
+            paths[0]
+                .file_name()
+                .map(|f| format!("\"{}\"", f.to_string_lossy()))
+                .unwrap_or_else(|| "1 item".to_owned())
+        } else {
+            format!("{n} items")
+        };
+        let header = format!("Move {what} to {}?", quickfiles_core::display_name(&dest));
+        let go = |copy| Action::Transfer {
+            paths: paths.clone(),
+            dest: dest.clone(),
+            copy,
+            policy: None,
+        };
+        let items = vec![
+            MenuItem::new("Move", go(false)),
+            MenuItem::new("Copy instead", go(true)),
+            MenuItem::separator(),
+            MenuItem::new("Cancel", Action::CloseMenu),
+        ];
+        self.state.menu = Some(MenuState::at(egui::pos2(400.0, 260.0), items).with_header(header));
+    }
+
     /// Asks once how to resolve name clashes for a copy / move / paste.
     fn ask_conflict(&mut self, n: usize, make: impl Fn(Conflict) -> Action) {
         let items = vec![
-            MenuItem::new("Replace the existing items", make(Conflict::Replace)),
+            MenuItem::new(
+                "Replace files that exist (folders are merged)",
+                make(Conflict::Replace),
+            ),
             MenuItem::new("Keep both (rename the new ones)", make(Conflict::KeepBoth)),
             MenuItem::new("Skip the ones that exist", make(Conflict::Skip)),
             MenuItem::separator(),
@@ -720,7 +793,16 @@ impl App {
             }
             if ws != self.window {
                 self.window = ws;
-                sys::save_window(ws);
+                self.window_dirty = Some(std::time::Instant::now());
+            }
+        }
+        if let Some(t) = self.window_dirty {
+            const QUIET: std::time::Duration = std::time::Duration::from_millis(400);
+            if t.elapsed() >= QUIET {
+                self.window_dirty = None;
+                sys::save_window(self.window);
+            } else {
+                ctx.request_repaint_after(QUIET);
             }
         }
     }

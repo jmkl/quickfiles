@@ -15,7 +15,7 @@ use quickfiles_core::{Category, EntryRef, ImageKey, format_size, is_text_like, p
 
 use super::{
     Action, Cx,
-    icons::{self, Icon},
+    icons::Icon,
     tex::Want,
     widgets::{galley, hline, icon_button, text_left, vline},
 };

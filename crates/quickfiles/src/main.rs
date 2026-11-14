@@ -7,6 +7,7 @@
 mod app;
 mod config;
 mod hotkeys;
+mod ids;
 mod keyseq;
 mod state;
 mod theme;

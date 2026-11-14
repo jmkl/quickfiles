@@ -151,6 +151,7 @@ pub fn show(ui: &mut Ui, cx: &mut Cx<'_>, r: Rect) {
             MenuItem::separator(),
             MenuItem::new("New tab", Action::NewTab),
             MenuItem::new("New folder", Action::NewFolder),
+            MenuItem::new("New file", Action::NewFile),
             MenuItem::new("Copy path", Action::CopyPath),
             MenuItem::new("Refresh", Action::Refresh),
             MenuItem::separator(),
@@ -254,14 +255,13 @@ fn breadcrumb(ui: &mut Ui, cx: &mut Cx<'_>, start_x: f32, cy: f32, limit_x: f32)
 /// Up / Down pick a suggestion.
 fn path_editor(ui: &mut Ui, cx: &mut Cx<'_>, start_x: f32, cy: f32, limit_x: f32) {
     use eframe::egui::{
-        Align, Area, Frame, Id, Key, Layout, Modifiers, Order, Stroke, StrokeKind, TextEdit,
-        UiBuilder,
+        Align, Area, Frame, Key, Layout, Modifiers, Order, Stroke, StrokeKind, TextEdit, UiBuilder,
     };
 
     let th = cx.theme;
     let pal = &th.palette;
     let ctx = ui.ctx().clone();
-    let id = Id::new("path_edit");
+    let id = crate::ids::id("path_edit");
     let rect = Rect::from_min_max(pos2(start_x - 8.0, cy - 12.0), pos2(limit_x, cy + 12.0));
 
     // Recompute the suggestions only when the text changed.
@@ -279,8 +279,12 @@ fn path_editor(ui: &mut Ui, cx: &mut Cx<'_>, start_x: f32, cy: f32, limit_x: f32
         cx.state.path_sel = None;
     }
     let valid = cx.state.path_valid;
-    let edge = if valid { pal.accent } else { pal.danger };
-    ui.painter().rect_filled(rect, 6.0, pal.background);
+    let edge = if valid {
+        pal.input_border_focus
+    } else {
+        pal.danger
+    };
+    ui.painter().rect_filled(rect, 6.0, pal.input_background);
     ui.painter()
         .rect_stroke(rect, 6.0, Stroke::new(1.0, edge), StrokeKind::Inside);
 
@@ -324,7 +328,7 @@ fn path_editor(ui: &mut Ui, cx: &mut Cx<'_>, start_x: f32, cy: f32, limit_x: f32
     let output = TextEdit::singleline(text)
         .id(id)
         .font(th.font.clone())
-        .text_color(if valid { pal.text } else { pal.danger })
+        .text_color(if valid { pal.input_text } else { pal.danger })
         .frame(Frame::NONE)
         .desired_width(rect.width() - 16.0)
         .show(&mut edit_ui);
@@ -375,7 +379,7 @@ fn path_editor(ui: &mut Ui, cx: &mut Cx<'_>, start_x: f32, cy: f32, limit_x: f32
             ),
         );
         cx.state.path_list_rect = Some(list);
-        Area::new(Id::new("path_suggest"))
+        Area::new(crate::ids::id("path_suggest"))
             .order(Order::Foreground)
             .fixed_pos(list.min)
             .show(&ctx, |ui| {

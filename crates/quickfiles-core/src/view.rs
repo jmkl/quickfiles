@@ -164,6 +164,7 @@ impl View {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn shared(&self) -> &Arc<Shared> {
         &self.shared
     }
@@ -219,7 +220,7 @@ impl View {
             }
             g.wanted = range;
         }
-        let _ = self.tx.send(Command::Want(self.shared.id));
+        let _ = self.tx.send(Command::Want);
     }
 
     /// Whether every row is loaded (small folders are loaded completely in the background).
@@ -366,7 +367,7 @@ mod tests {
         v.want(2..8);
         let sent: Vec<_> = rx.try_iter().collect();
         assert_eq!(sent.len(), 2);
-        assert!(matches!(sent[0], Command::Want(7)));
+        assert!(matches!(sent[0], Command::Want));
     }
 
     #[test]

@@ -131,7 +131,7 @@ pub fn show(ui: &mut Ui, cx: &mut Cx<'_>, r: Rect) {
 
 /// True once the pointer has rested on `rect` for `secs` while dragging (fires once per rest).
 fn hover_dwell(ui: &Ui, i: usize, rect: Rect, secs: f64) -> bool {
-    let id = eframe::egui::Id::new(("tab_dwell", i));
+    let id = crate::ids::id(("tab_dwell", i));
     let now = ui.input(|inp| inp.time);
     let over = ui
         .input(|inp| inp.pointer.hover_pos().or(inp.pointer.latest_pos()))

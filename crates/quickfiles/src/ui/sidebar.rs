@@ -232,7 +232,7 @@ fn side_item(ui: &mut Ui, cx: &mut Cx<'_>, mark: Mark, label: &str, path: &Path,
     }
 }
 
-/// Drive name with a capacity bar underneath (blue normally, red when >= 90% full).
+/// Drive name with a capacity bar underneath (`storage_fill`, or `storage_fill_full` when >= 90% full).
 fn drive_item(ui: &mut Ui, cx: &mut Cx<'_>, drive: &DriveInfo) {
     let th = cx.theme;
     let (pal, m) = (&th.palette, &th.metrics);
@@ -271,11 +271,11 @@ fn drive_item(ui: &mut Ui, cx: &mut Cx<'_>, drive: &DriveInfo) {
         pos2(rect.left() + m.side_text_x, rect.top() + 22.0),
         pos2(rect.right() - 26.0, rect.top() + 27.0),
     );
-    p.rect_filled(bar, 1.0, pal.control);
+    p.rect_filled(bar, 1.0, pal.storage_track);
     p.rect_stroke(
         bar,
         1.0,
-        Stroke::new(1.0, pal.control_border),
+        Stroke::new(1.0, pal.storage_track_border),
         StrokeKind::Inside,
     );
     let filled = Rect::from_min_size(
@@ -286,9 +286,9 @@ fn drive_item(ui: &mut Ui, cx: &mut Cx<'_>, drive: &DriveInfo) {
         filled,
         1.0,
         if drive.nearly_full() {
-            pal.danger
+            pal.storage_fill_full
         } else {
-            pal.accent
+            pal.storage_fill
         },
     );
 

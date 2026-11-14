@@ -2,7 +2,7 @@
 //! so thin invisible strips along the edges and corners start a native resize drag.
 
 use eframe::egui::{
-    CursorIcon, Id, PointerButton, Rect, ResizeDirection, Sense, Ui, ViewportCommand, pos2, vec2,
+    CursorIcon, PointerButton, Rect, ResizeDirection, Sense, Ui, ViewportCommand, pos2, vec2,
 };
 
 /// Thickness of the edge grips, in logical pixels.
@@ -83,7 +83,7 @@ pub fn show(ui: &mut Ui, full: Rect) {
     ];
 
     for (name, rect, direction, cursor) in grips {
-        let response = ui.interact(rect, Id::new(("resize_grip", name)), Sense::drag());
+        let response = ui.interact(rect, crate::ids::id(("resize_grip", name)), Sense::drag());
         if response.hovered() || response.dragged() {
             ctx.set_cursor_icon(cursor);
         }

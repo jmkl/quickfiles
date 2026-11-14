@@ -43,9 +43,9 @@ fn info_for<'a>(drives: &'a [DriveInfo], entry: &EntryRef) -> Option<&'a DriveIn
 
 fn bar_color(cx: &Cx<'_>, d: &DriveInfo) -> Color32 {
     if d.nearly_full() {
-        cx.theme.palette.danger
+        cx.theme.palette.storage_fill_full
     } else {
-        cx.theme.palette.accent
+        cx.theme.palette.storage_fill
     }
 }
 
@@ -78,9 +78,9 @@ fn highlight(ui: &Ui, cx: &Cx<'_>, entry: &EntryRef, rect: Rect, hovered: bool, 
     let pal = &cx.theme.palette;
     let p = ui.painter();
     if cx.state.selected.contains(&entry.key) {
-        p.rect_filled(rect, radius, pal.accent.gamma_multiply(0.28));
+        p.rect_filled(rect, radius, pal.list_selected);
     } else if hovered {
-        p.rect_filled(rect, radius, pal.hover);
+        p.rect_filled(rect, radius, pal.list_hover);
     }
     if cx.state.focused == Some(entry.key) {
         p.rect_stroke(
@@ -215,11 +215,11 @@ fn list(ui: &mut Ui, cx: &mut Cx<'_>, view: &View, drives: &[DriveInfo], header:
         if let Some((_, left, w)) = col("Percent Full") {
             let bar =
                 Rect::from_min_max(pos2(left + pad, cy - 8.0), pos2(left + w - 12.0, cy + 8.0));
-            p.rect_filled(bar, 2.0, pal.control);
+            p.rect_filled(bar, 2.0, pal.storage_track);
             p.rect_stroke(
                 bar,
                 2.0,
-                Stroke::new(1.0, pal.control_border),
+                Stroke::new(1.0, pal.storage_track_border),
                 StrokeKind::Inside,
             );
             let fill = Rect::from_min_size(
@@ -294,11 +294,11 @@ fn grid(ui: &mut Ui, cx: &mut Cx<'_>, view: &View, drives: &[DriveInfo], area: R
             pos2(rect.left() + 8.0, rect.top() + 98.0),
             vec2(rect.width() - 16.0, 10.0),
         );
-        p.rect_filled(bar, 1.0, pal.control);
+        p.rect_filled(bar, 1.0, pal.storage_track);
         p.rect_stroke(
             bar,
             1.0,
-            Stroke::new(1.0, pal.control_border),
+            Stroke::new(1.0, pal.storage_track_border),
             StrokeKind::Inside,
         );
         let fill = Rect::from_min_size(

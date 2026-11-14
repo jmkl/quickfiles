@@ -29,6 +29,15 @@ struct Row {
 }
 
 pub fn overlay(ui: &mut Ui, cx: &mut Cx<'_>, full: Rect) {
+    // The help panel is a reference card: any click, in the app or in another window, dismisses
+    // it. (The which-key hints are cancelled by the key handling, not here.)
+    if cx.state.help_open && cx.state.hints.is_none() {
+        let dismiss = ui.input(|i| i.pointer.any_pressed() || !i.focused);
+        if dismiss {
+            cx.state.help_open = false;
+            return;
+        }
+    }
     let (title, hint, rows) = if let Some(h) = &cx.state.hints {
         let rows: Vec<Row> = h
             .items

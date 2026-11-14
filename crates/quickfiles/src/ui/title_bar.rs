@@ -1,8 +1,8 @@
 //! Custom title bar: hamburger, browser-style search box (centred) and window buttons.
 
 use eframe::egui::{
-    self, Align, Align2, Color32, Frame, Id, Key, Layout, Rect, RichText, Sense, Stroke,
-    StrokeKind, TextEdit, Ui, UiBuilder, ViewportCommand, pos2, vec2,
+    self, Align, Align2, Color32, Frame, Key, Layout, Rect, RichText, Sense, Stroke, StrokeKind,
+    TextEdit, Ui, UiBuilder, ViewportCommand, pos2, vec2,
 };
 
 use super::{
@@ -147,7 +147,7 @@ fn search_box(ui: &mut Ui, cx: &mut Cx<'_>, rect: Rect) {
     let pal = &th.palette;
     let p = ui.painter().clone();
     let ctx = ui.ctx().clone();
-    let id = Id::new("title_search");
+    let id = crate::ids::id("title_search");
 
     // Ctrl+F / Ctrl+L (see hotkeys.rs) ask for focus through this one-shot flag.
     if std::mem::take(&mut cx.state.focus_search) {
@@ -162,13 +162,13 @@ fn search_box(ui: &mut Ui, cx: &mut Cx<'_>, rect: Rect) {
 
     let focused = ctx.memory(|mem| mem.has_focus(id));
     let radius = rect.height() * 0.5;
-    p.rect_filled(rect, radius, pal.background);
+    p.rect_filled(rect, radius, pal.input_background);
     let edge = if focused {
-        pal.accent
+        pal.input_border_focus
     } else if pill.hovered() {
-        pal.control_border
+        pal.input_border.lerp_to_gamma(pal.input_border_focus, 0.4)
     } else {
-        pal.border
+        pal.input_border
     };
     p.rect_stroke(rect, radius, Stroke::new(1.0, edge), StrokeKind::Inside);
 
@@ -210,6 +210,7 @@ fn search_box(ui: &mut Ui, cx: &mut Cx<'_>, rect: Rect) {
             .id(id)
             .hint_text(RichText::new(hint).color(pal.text_muted))
             .frame(Frame::NONE)
+            .text_color(pal.input_text)
             .desired_width(edit_rect.width())
             .align(Align2::CENTER_CENTER),
     );

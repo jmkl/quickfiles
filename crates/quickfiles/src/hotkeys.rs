@@ -1,7 +1,7 @@
 //! Hotkey system: one table that maps shortcuts to [`Action`]s.
 //!
 //! Every user operation (buttons included) goes through `Action`, so a hotkey is just another
-//! way to produce one. To add or change a shortcut, edit [`Hotkeys::default_map`] only.
+//! way to produce one. To add or change a default shortcut, edit the template in `config.rs`.
 //!
 //! `in_text` says whether a binding still fires while a text box has focus. Plain keys
 //! (Backspace, Esc, Delete, Ctrl+A/C/X/V) must not, or they would steal editing keys.
@@ -15,7 +15,7 @@
 
 use std::time::{Duration, Instant};
 
-use eframe::egui::{Context, Event, Id, Key, KeyboardShortcut, Modifiers};
+use eframe::egui::{Context, Event, Key, KeyboardShortcut, Modifiers};
 
 use crate::{keyseq, ui::Action};
 
@@ -97,6 +97,7 @@ const ACTIONS: &[(&str, fn() -> Action, bool)] = &[
     ("Up", || Action::Up, false),
     ("Refresh", || Action::Refresh, true),
     ("NewFolder", || Action::NewFolder, false),
+    ("NewFile", || Action::NewFile, false),
     ("Delete", || Action::Delete { permanent: false }, false),
     (
         "DeletePermanent",
@@ -152,6 +153,7 @@ pub const DEFAULTS: &[(&str, &str)] = &[
     ("Backspace", "Up"),
     ("F5", "Refresh"),
     ("Ctrl+Shift+N", "NewFolder"),
+    ("Ctrl+N", "NewFile"),
     ("Ctrl+Shift+C", "CopyPath"),
     ("Shift+Delete", "DeletePermanent"),
     ("Delete", "Delete"),
@@ -182,6 +184,7 @@ pub const DEFAULTS: &[(&str, &str)] = &[
     ("Space h", "ToggleHidden"),
     ("Space g", "ToggleGrid"),
     ("Space n", "NewFolder"),
+    ("Space a", "NewFile"),
     ("Space e", "Rename"),
     ("Space o", "Reveal"),
     ("Space m", "Bookmark"),
@@ -266,6 +269,7 @@ fn weight(s: &KeyboardShortcut) -> std::cmp::Reverse<u8> {
 }
 
 impl Hotkeys {
+    #[cfg(test)]
     pub fn default_map() -> Self {
         Self::from_config("").0
     }
@@ -371,11 +375,16 @@ impl Hotkeys {
         // Only the search box and the rename box count as "typing". `wants_keyboard_input()` is
         // also true when a clicked button holds focus, which would disable every plain hotkey.
         let typing = ctx.memory(|m| {
-            matches!(m.focused(), Some(f) if f == Id::new("title_search") || f == Id::new("rename_edit") || f == Id::new("path_edit"))
+            matches!(m.focused(), Some(f) if f == crate::ids::id("title_search") || f == crate::ids::id("rename_edit") || f == crate::ids::id("path_edit"))
         });
         // The address bar owns every key (Up / Down / Tab move in its suggestion list), unlike the
         // search box, where Up / Down still move the file selection.
-        if ctx.memory(|m| matches!(m.focused(), Some(f) if f == Id::new("path_edit"))) {
+        // The rename box owns every key too. `Open` is allowed while typing (Enter in the search
+        // box opens the first result), so without this the Enter that commits a name also opened
+        // the item being renamed, and the new name was lost.
+        if ctx.memory(|m| {
+            matches!(m.focused(), Some(f) if f == crate::ids::id("path_edit") || f == crate::ids::id("rename_edit"))
+        }) {
             self.pending.clear();
             return;
         }

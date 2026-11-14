@@ -218,8 +218,6 @@ enum Lane {
 }
 
 impl Lane {
-    const ALL: [Self; 3] = [Self::Icon, Self::Thumb, Self::Preview];
-
     fn of(key: &ImageKey) -> Self {
         match key {
             ImageKey::Icon { .. } | ImageKey::PathIcon(_) => Self::Icon,

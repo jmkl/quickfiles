@@ -1,7 +1,7 @@
 //! Drag handles on the inner edges of the side panels. Only active once a panel has finished
 //! sliding open.
 
-use eframe::egui::{CursorIcon, Id, Rect, Response, Sense, Ui, pos2, vec2};
+use eframe::egui::{CursorIcon, Rect, Response, Sense, Ui, pos2, vec2};
 
 use super::{
     Cx,
@@ -50,7 +50,7 @@ pub fn show(
 /// A 6px-wide grab strip centred on `x`; shows a thin accent line while hovered or dragged.
 fn handle(ui: &Ui, cx: &Cx<'_>, salt: &'static str, x: f32, y0: f32, y1: f32) -> Response {
     let rect = Rect::from_min_max(pos2(x - 3.0, y0), pos2(x + 3.0, y1));
-    let response = ui.interact(rect, Id::new(salt), Sense::drag());
+    let response = ui.interact(rect, crate::ids::id(salt), Sense::drag());
     if response.hovered() || response.dragged() {
         ui.ctx().set_cursor_icon(CursorIcon::ResizeHorizontal);
         let line = Rect::from_center_size(pos2(x, (y0 + y1) * 0.5), vec2(2.0, y1 - y0));

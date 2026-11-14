@@ -10,6 +10,8 @@ mod gate;
 mod grid;
 mod icons;
 mod layout;
+mod marquee;
+pub use marquee::Marquee;
 mod menu;
 mod perf;
 mod preview;
@@ -25,7 +27,7 @@ mod widgets;
 
 use std::path::PathBuf;
 
-use eframe::egui::{Context, Id, Ui, UiBuilder};
+use eframe::egui::{Context, Ui, UiBuilder};
 use quickfiles_core::{Conflict, Core, EngineStatus};
 
 use crate::{state::State, theme::Theme};
@@ -34,7 +36,6 @@ pub use dnd::dropped;
 pub use menu::{MenuItem, MenuState};
 pub use perf::Perf;
 pub use tex::Tex;
-pub use tex::TexStats;
 
 /// Side effects the UI asks the app to perform after the frame.
 #[derive(Clone, Debug)]
@@ -83,6 +84,7 @@ pub enum Action {
     ConfirmDelete,
     Rename,
     NewFolder,
+    NewFile,
     Reveal,
     ClearHistory,
     /// Menu: delete every cached thumbnail (memory and disk).
@@ -114,6 +116,13 @@ pub enum Action {
     CycleTab(i32),
     /// Paste after the user chose how to resolve name clashes.
     PasteWith(Conflict),
+    /// Files dropped on a folder by dragging inside the app. A copy (Ctrl held) goes straight
+    /// through; a move asks first.
+    DragDrop {
+        paths: Vec<PathBuf>,
+        dest: PathBuf,
+        copy: bool,
+    },
     /// Move or copy into a folder (drag and drop). `policy: None` asks when names clash.
     Transfer {
         paths: Vec<PathBuf>,
@@ -132,12 +141,15 @@ pub struct Cx<'a> {
     pub actions: &'a mut Vec<Action>,
 }
 
+/// How long the window size must stay unchanged before it counts as settled.
+const RESIZE_SETTLE: std::time::Duration = std::time::Duration::from_millis(120);
+
 /// Seconds a side panel takes to slide in or out.
 const SLIDE_SECS: f32 = 0.18;
 
 /// Animated 0..=1 "how open" value for a panel, eased out.
 fn slide(ctx: &Context, key: &'static str, open: bool) -> f32 {
-    let t = ctx.animate_bool_with_time(Id::new(key), open, SLIDE_SECS);
+    let t = ctx.animate_bool_with_time(crate::ids::id(key), open, SLIDE_SECS);
     t * (2.0 - t)
 }
 
@@ -152,6 +164,16 @@ pub fn draw(ui: &mut Ui, cx: &mut Cx<'_>) {
     let theme = cx.theme;
     let ctx = ui.ctx().clone();
     let full = ui.max_rect();
+    // Spamming a window resize sends a frame per mouse move. While the size is still changing,
+    // skip the work that only pays off once the layout settles; one repaint after it stops.
+    if full.size() != cx.state.last_size {
+        cx.state.last_size = full.size();
+        cx.state.last_resize = std::time::Instant::now();
+    }
+    cx.state.resizing = cx.state.last_resize.elapsed() < RESIZE_SETTLE;
+    if cx.state.resizing {
+        ctx.request_repaint_after(RESIZE_SETTLE);
+    }
     // Widgets go inert while a menu is open (it was opened in an earlier frame).
     widgets::set_modal(&ctx, cx.state.menu.as_ref().is_some_and(|m| !m.fresh));
     cx.tex.begin_frame();

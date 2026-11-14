@@ -353,12 +353,21 @@ fn resolve(target: &Path, src: &Path, policy: Conflict) -> Option<PathBuf> {
     match policy {
         Conflict::Skip => None,
         Conflict::KeepBoth => Some(unique(target)),
+        // Nothing that exists is deleted up front: a folder dropped on a folder of the same name
+        // is merged (files with the same name are overwritten, the others stay), and a file is
+        // overwritten by the copy itself.
         Conflict::Replace => {
-            let _ = if target.is_dir() {
-                fs::remove_dir_all(target)
-            } else {
-                fs::remove_file(target)
-            };
+            if target.is_dir() {
+                if src.is_dir() {
+                    return Some(target.to_owned());
+                }
+                // A file cannot take the place of a whole folder without deleting it.
+                return Some(unique(target));
+            }
+            if src.is_dir() {
+                // A folder replaces a plain file of the same name.
+                let _ = fs::remove_file(target);
+            }
             Some(target.to_owned())
         }
     }
@@ -526,6 +535,20 @@ pub fn new_folder(dir: &Path) -> io::Result<PathBuf> {
     Ok(target)
 }
 
+/// Creates an empty "New file.txt", "New file (2).txt", ... inside `dir`.
+pub fn new_file(dir: &Path) -> io::Result<PathBuf> {
+    let mut target = dir.join("New file.txt");
+    if target.exists() {
+        target = unique(&target);
+    }
+    // `create_new` fails instead of truncating if something appeared in the meantime.
+    fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&target)?;
+    Ok(target)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -607,6 +630,68 @@ mod tests {
     }
 
     #[test]
+    fn replacing_a_folder_merges_and_never_deletes_the_rest() {
+        let root = tmp("merge");
+        let (src, dst) = (root.join("src"), root.join("dst"));
+        // dst/foldera holds two files and a sub-folder; src/foldera holds one of them.
+        fs::create_dir_all(dst.join("foldera/inner")).unwrap();
+        fs::write(dst.join("foldera/somefile.txt"), "old").unwrap();
+        fs::write(dst.join("foldera/anotherfile.txt"), "keep me").unwrap();
+        fs::write(dst.join("foldera/inner/deep.txt"), "deep").unwrap();
+        fs::create_dir_all(src.join("foldera")).unwrap();
+        fs::write(src.join("foldera/somefile.txt"), "new").unwrap();
+        let jobs = Jobs::new(Arc::new(|| {}));
+
+        jobs.start(
+            Kind::Copy,
+            vec![src.join("foldera")],
+            Some(dst.clone()),
+            Conflict::Replace,
+            || {},
+        );
+        assert_eq!(wait(&jobs), JobState::Done);
+        assert_eq!(
+            fs::read_to_string(dst.join("foldera/somefile.txt")).unwrap(),
+            "new"
+        );
+        assert_eq!(
+            fs::read_to_string(dst.join("foldera/anotherfile.txt")).unwrap(),
+            "keep me"
+        );
+        assert!(dst.join("foldera/inner/deep.txt").exists());
+
+        // Moving merges the same way and then removes the source.
+        jobs.prune_finished();
+        fs::write(src.join("foldera/third.txt"), "3").unwrap();
+        jobs.start(
+            Kind::Move,
+            vec![src.join("foldera")],
+            Some(dst.clone()),
+            Conflict::Replace,
+            || {},
+        );
+        assert_eq!(wait(&jobs), JobState::Done);
+        assert!(dst.join("foldera/third.txt").exists());
+        assert!(dst.join("foldera/anotherfile.txt").exists());
+        assert!(!src.join("foldera").exists());
+
+        // A file never replaces a whole folder: both are kept.
+        jobs.prune_finished();
+        fs::write(src.join("foldera"), "i am a file").unwrap();
+        jobs.start(
+            Kind::Copy,
+            vec![src.join("foldera")],
+            Some(dst.clone()),
+            Conflict::Replace,
+            || {},
+        );
+        assert_eq!(wait(&jobs), JobState::Done);
+        assert!(dst.join("foldera/anotherfile.txt").exists());
+        assert!(dst.join("foldera (2)").is_file());
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
     fn rename_and_new_folder() {
         let root = tmp("b");
         let f = root.join("x.txt");
@@ -660,5 +745,21 @@ mod tests {
         assert!((info.fraction() - 1.0).abs() < f32::EPSILON);
         assert_eq!(fs::metadata(dst.join("big.bin")).unwrap().len(), 3 << 20);
         let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn new_file_never_overwrites() {
+        let dir = tmp("newfile");
+        let a = new_file(&dir).unwrap();
+        fs::write(&a, "keep").unwrap();
+        let b = new_file(&dir).unwrap();
+        assert_ne!(a, b);
+        assert_eq!(fs::read_to_string(&a).unwrap(), "keep");
+        assert!(
+            b.file_name()
+                .unwrap()
+                .to_string_lossy()
+                .starts_with("New file")
+        );
     }
 }

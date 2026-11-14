@@ -6,7 +6,7 @@
 use std::path::{Path, PathBuf};
 
 use eframe::egui::{
-    Color32, CursorIcon, Id, Key, LayerId, Order, Rect, Stroke, StrokeKind, Ui, pos2, vec2,
+    Color32, CursorIcon, Key, LayerId, Order, Rect, Stroke, StrokeKind, Ui, pos2, vec2,
 };
 
 use super::{Action, Cx, widgets::galley};
@@ -77,11 +77,10 @@ pub fn target(ui: &Ui, cx: &mut Cx<'_>, rect: Rect, dest: &Path) -> bool {
     );
     if ui.input(|i| i.pointer.any_released()) {
         let copy = ui.input(|i| i.modifiers.command);
-        cx.actions.push(Action::Transfer {
+        cx.actions.push(Action::DragDrop {
             paths: drag.paths.clone(),
             dest: dest.to_owned(),
             copy,
-            policy: None,
         });
     }
     true
@@ -103,7 +102,7 @@ pub fn overlay(ui: &mut Ui, cx: &mut Cx<'_>, full: Rect) {
             } else {
                 drag.label.clone()
             };
-            let p = ctx.layer_painter(LayerId::new(Order::Tooltip, Id::new("qf_drag")));
+            let p = ctx.layer_painter(LayerId::new(Order::Tooltip, crate::ids::id("qf_drag")));
             let g = galley(&p, &text, &th.font, pal.text, 260.0);
             let rect = Rect::from_min_size(pos + vec2(14.0, 14.0), g.size() + vec2(20.0, 10.0));
             p.rect_filled(rect, 6.0, pal.surface);
@@ -124,11 +123,10 @@ pub fn overlay(ui: &mut Ui, cx: &mut Cx<'_>, full: Rect) {
             let hit = at.and_then(|p| cx.state.tab_hits.iter().find(|(r, _)| r.contains(p)));
             match hit.map(|(_, dir)| dir.clone()) {
                 Some(Some(dest)) if valid_target(&drag, &dest) => {
-                    cx.actions.push(Action::Transfer {
+                    cx.actions.push(Action::DragDrop {
                         paths: drag.paths.clone(),
                         dest,
                         copy,
-                        policy: None,
                     });
                 }
                 Some(_) => cx
@@ -142,7 +140,7 @@ pub fn overlay(ui: &mut Ui, cx: &mut Cx<'_>, full: Rect) {
                     let taken = cx
                         .actions
                         .iter()
-                        .any(|a| matches!(a, Action::Transfer { .. }));
+                        .any(|a| matches!(a, Action::DragDrop { .. }));
                     let here = cx
                         .core
                         .nav()
@@ -158,12 +156,7 @@ pub fn overlay(ui: &mut Ui, cx: &mut Cx<'_>, full: Rect) {
                             .cloned()
                             .collect();
                         if !paths.is_empty() {
-                            cx.actions.push(Action::Transfer {
-                                paths,
-                                dest,
-                                copy,
-                                policy: None,
-                            });
+                            cx.actions.push(Action::DragDrop { paths, dest, copy });
                         }
                     }
                 }
@@ -184,7 +177,10 @@ pub fn overlay(ui: &mut Ui, cx: &mut Cx<'_>, full: Rect) {
             .as_deref()
             .map(quickfiles_core::display_name);
         let dest = over.clone().or_else(|| cx.state.drop_dest.clone());
-        let p = ctx.layer_painter(LayerId::new(Order::Foreground, Id::new("qf_drop_banner")));
+        let p = ctx.layer_painter(LayerId::new(
+            Order::Foreground,
+            crate::ids::id("qf_drop_banner"),
+        ));
         if over.is_none() {
             p.rect_filled(full, 0.0, Color32::from_black_alpha(90));
             p.rect_stroke(

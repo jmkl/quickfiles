@@ -130,6 +130,13 @@ pub struct State {
     pub view_id: u64,
 
     pub rename: Option<Rename>,
+    /// Window resizing: size last frame, when it last changed, and whether it is still moving.
+    /// Background work that only matters once the layout settles (thumbnail prefetch) waits.
+    pub last_size: eframe::egui::Vec2,
+    pub last_resize: Instant,
+    pub resizing: bool,
+    /// Rubber-band selection in progress.
+    pub marquee: Option<crate::ui::Marquee>,
     /// Paths waiting for the permanent-delete confirmation.
     pub confirm: Vec<PathBuf>,
     pub menu: Option<MenuState>,
@@ -226,6 +233,10 @@ impl State {
             perf: crate::ui::Perf::default(),
             hints: None,
             help_open: false,
+            last_size: eframe::egui::Vec2::ZERO,
+            last_resize: Instant::now(),
+            resizing: false,
+            marquee: None,
             help_rows: Vec::new(),
             drop_hover: None,
             drop_dest: None,

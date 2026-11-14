@@ -37,12 +37,12 @@ pub struct Palette {
     /// Dividers and outlines.
     pub border: Color32,
     // Accents
-    /// Focus ring, selection, healthy drive bar, drop highlight.
+    /// Focus ring, selection, drop highlight.
     pub accent: Color32,
-    /// Warnings: nearly-full drive bar, errors.
+    /// Warnings and errors.
     pub danger: Color32,
     // Controls (bars and boxes)
-    /// Empty part of a progress / drive bar, small boxes.
+    /// Empty part of a progress bar, small boxes.
     pub control: Color32,
     pub control_border: Color32,
     // Text
@@ -67,6 +67,28 @@ pub struct Palette {
     // Window buttons
     /// Close button under the pointer.
     pub window_close: Color32,
+    // Storage (drive capacity bars in the sidebar and the This PC list)
+    /// Used part of a drive bar.
+    pub storage_fill: Color32,
+    /// Used part once the drive is nearly full (90% or more).
+    pub storage_fill_full: Color32,
+    /// Empty part of a drive bar, and its outline.
+    pub storage_track: Color32,
+    pub storage_track_border: Color32,
+    // Rubber-band selection
+    /// Outline of the selection rectangle; its fill is the same colour, mostly transparent.
+    pub selection_band: Color32,
+    // File list rows and tiles
+    /// Selected row, tile or drive.
+    pub list_selected: Color32,
+    /// Row, tile or drive under the pointer.
+    pub list_hover: Color32,
+    // Text boxes (search, address bar, rename)
+    pub input_background: Color32,
+    pub input_border: Color32,
+    /// Border while the box has focus.
+    pub input_border_focus: Color32,
+    pub input_text: Color32,
     // File type glyphs
     pub icon_folder: Color32,
     pub icon_drive: Color32,
@@ -111,6 +133,17 @@ impl Palette {
         scrollbar_thumb_hover: rgb(0xf0, 0xf0, 0xf0),
         scrollbar_thumb_active: rgb(0xff, 0xff, 0xff),
         window_close: rgb(0xc4, 0x2b, 0x1c),
+        storage_fill: rgb(0x00, 0x79, 0xa6),
+        storage_fill_full: rgb(0xff, 0x66, 0x66),
+        storage_track: rgb(0x38, 0x3c, 0x3d),
+        storage_track_border: rgb(0x46, 0x4a, 0x4d),
+        selection_band: rgb(0x00, 0x79, 0xa6),
+        list_selected: rgb(0x12, 0x35, 0x43),
+        list_hover: rgb(0x2a, 0x2d, 0x2f),
+        input_background: rgb(0x19, 0x1b, 0x1c),
+        input_border: rgb(0x34, 0x3a, 0x3b),
+        input_border_focus: rgb(0x00, 0x79, 0xa6),
+        input_text: rgb(0xdd, 0xde, 0xe0),
         icon_folder: rgb(0xff, 0xdc, 0x79),
         icon_drive: rgb(0xe0, 0xe2, 0xe5),
         icon_drive_system: rgb(0x12, 0x90, 0xdd),
@@ -198,6 +231,17 @@ palette_fields!(
     scrollbar_thumb_hover,
     scrollbar_thumb_active,
     window_close,
+    storage_fill,
+    storage_fill_full,
+    storage_track,
+    storage_track_border,
+    selection_band,
+    list_selected,
+    list_hover,
+    input_background,
+    input_border,
+    input_border_focus,
+    input_text,
     icon_folder,
     icon_drive,
     icon_drive_system,

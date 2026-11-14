@@ -8,7 +8,7 @@ use quickfiles_core::{EntryRef, Kind, SortDir, SortKey, ViewState};
 use super::{
     Action, Cx, dnd,
     icons::{self, Icon},
-    widgets::{click_sense, drag_sense, galley, hit, text_left},
+    widgets::{click_sense, drag_sense, galley, hit, scroll_no_drag, text_left},
 };
 
 const CELL_W: f32 = 116.0;
@@ -50,6 +50,7 @@ pub fn show(ui: &mut Ui, cx: &mut Cx<'_>, header: Rect, area: Rect) {
     let mut scroll_ui = ui.new_child(UiBuilder::new().max_rect(area));
     let mut scroll = ScrollArea::vertical()
         .id_salt(("grid", view.id()))
+        .scroll_source(scroll_no_drag())
         .auto_shrink([false, false]);
     if let Some(y) = cx.state.scroll_to.take() {
         scroll = scroll.vertical_scroll_offset(y);
@@ -93,6 +94,18 @@ pub fn show(ui: &mut Ui, cx: &mut Cx<'_>, header: Rect, area: Rect) {
         }
     });
     cx.state.list_scroll = out.state.clamped_offset().y;
+    super::marquee::run(
+        ui,
+        cx,
+        &view,
+        area,
+        super::marquee::Layout::Grid {
+            cols,
+            left: left - area.left(),
+            cell_w: CELL_W,
+            cell_h: CELL_H,
+        },
+    );
 
     // Scroll gating, and a low-priority look at the rows ahead in the scroll direction.
     let ctx = ui.ctx().clone();
@@ -100,11 +113,13 @@ pub fn show(ui: &mut Ui, cx: &mut Cx<'_>, header: Rect, area: Rect) {
     super::tex::track_scroll(cx, &ctx, view.id(), offset);
     let ahead =
         super::tex::rows_ahead(&seen, cx.state.scroll_gate.direction(), PREFETCH_ROWS, rows);
-    cx.tex.prefetch_rows(
-        cx.core.images(),
-        &view,
-        ahead.start * cols..(ahead.end * cols).min(total),
-    );
+    if !cx.state.resizing {
+        cx.tex.prefetch_rows(
+            cx.core.images(),
+            &view,
+            ahead.start * cols..(ahead.end * cols).min(total),
+        );
+    }
 }
 
 fn tile(ui: &mut Ui, cx: &mut Cx<'_>, view: &quickfiles_core::View, i: usize, rect: Rect) {
@@ -120,9 +135,9 @@ fn tile(ui: &mut Ui, cx: &mut Cx<'_>, view: &quickfiles_core::View, i: usize, re
 
     let p = ui.painter().clone();
     if selected {
-        p.rect_filled(rect, 8.0, pal.accent.gamma_multiply(0.28));
+        p.rect_filled(rect, 8.0, pal.list_selected);
     } else if response.hovered() {
-        p.rect_filled(rect, 8.0, pal.hover);
+        p.rect_filled(rect, 8.0, pal.list_hover);
     }
     if focused {
         p.rect_stroke(rect, 8.0, Stroke::new(1.0, pal.accent), StrokeKind::Inside);
@@ -170,7 +185,8 @@ fn tile(ui: &mut Ui, cx: &mut Cx<'_>, view: &quickfiles_core::View, i: usize, re
         );
     }
 
-    if response.drag_started() {
+    // A rubber band in progress (Ctrl + drag on an item) is not a file drag.
+    if response.drag_started() && cx.state.marquee.is_none() {
         if !cx.state.selected.contains(&key) {
             cx.state.select_only(key, i);
         }

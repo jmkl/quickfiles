@@ -4,7 +4,7 @@
 //! tens of thousands of entries costs the same per frame as one with ten.
 
 use eframe::egui::{
-    Align2, Color32, CursorIcon, Id, Key, Pos2, Rect, ScrollArea, Sense, Stroke, StrokeKind,
+    Align2, Color32, CursorIcon, Key, Modifiers, Pos2, Rect, ScrollArea, Sense, Stroke, StrokeKind,
     TextEdit, Ui, UiBuilder, pos2, vec2,
 };
 use quickfiles_core::{EmptyReason, EntryRef, Kind, SortDir, SortKey, ViewState, count_text};
@@ -12,7 +12,7 @@ use quickfiles_core::{EmptyReason, EntryRef, Kind, SortDir, SortKey, ViewState, 
 use super::{
     Action, Cx, MenuItem, MenuState, dnd,
     icons::{self, Icon},
-    widgets::{drag_sense, hit, text_left, text_right, vline},
+    widgets::{drag_sense, hit, scroll_no_drag, text_left, text_right, vline},
 };
 use crate::state::ColW;
 
@@ -287,6 +287,8 @@ fn draw_rows(ui: &mut Ui, cx: &mut Cx<'_>, area: Rect, cols: &Columns) {
     let mut scroll = ScrollArea::vertical()
         // New id per view: each query/navigation starts scrolled to the top.
         .id_salt(("file_list", view.id()))
+        // Dragging on empty space draws a selection band instead of panning.
+        .scroll_source(scroll_no_drag())
         .auto_shrink([false, false]);
 
     if let Some(y) = cx.state.scroll_to.take() {
@@ -320,6 +322,17 @@ fn draw_rows(ui: &mut Ui, cx: &mut Cx<'_>, area: Rect, cols: &Columns) {
         }
     });
     cx.state.list_scroll = output.state.clamped_offset().y;
+    super::marquee::run(
+        ui,
+        cx,
+        &view,
+        area,
+        super::marquee::Layout::List {
+            pitch,
+            left: cols.left - area.left(),
+            right: cols.right - area.left(),
+        },
+    );
 
     // Scroll gating, and a low-priority look at the rows ahead in the scroll direction.
     let ctx = ui.ctx().clone();
@@ -331,7 +344,9 @@ fn draw_rows(ui: &mut Ui, cx: &mut Cx<'_>, area: Rect, cols: &Columns) {
         PREFETCH_ROWS,
         total,
     );
-    cx.tex.prefetch_rows(cx.core.images(), &view, ahead);
+    if !cx.state.resizing {
+        cx.tex.prefetch_rows(cx.core.images(), &view, ahead);
+    }
 }
 
 fn message(ui: &Ui, area: Rect, text: &str, cx: &Cx<'_>) {
@@ -381,9 +396,9 @@ fn row(
 
         // Background: selection > hover > zebra.
         let bg = if selected {
-            Some(pal.accent.gamma_multiply(0.28))
+            Some(pal.list_selected)
         } else if response.hovered() {
-            Some(pal.hover)
+            Some(pal.list_hover)
         } else if i % 2 == 1 {
             Some(pal.row_alt)
         } else {
@@ -497,7 +512,8 @@ fn row(
     if renaming {
         return;
     }
-    if response.drag_started() {
+    // A rubber band in progress (Ctrl + drag on an item) is not a file drag.
+    if response.drag_started() && cx.state.marquee.is_none() {
         if !cx.state.selected.contains(&key) {
             cx.state.select_only(key, i);
         }
@@ -597,7 +613,6 @@ fn draw_icon(ui: &mut Ui, cx: &mut Cx<'_>, entry: &EntryRef, c: Pos2) {
     let th = cx.theme;
     let ctx = ui.ctx().clone();
     let size = 18.0;
-    let rect = Rect::from_center_size(c, vec2(size, size));
 
     if let Some(t) = cx.tex.thumb_or_icon(&ctx, cx.core.images(), entry) {
         // Fit inside the square, keep the aspect ratio.
@@ -618,17 +633,22 @@ fn draw_icon(ui: &mut Ui, cx: &mut Cx<'_>, entry: &EntryRef, c: Pos2) {
 pub(super) fn rename_box(ui: &mut Ui, cx: &mut Cx<'_>, rect: Rect) {
     let th = cx.theme;
     let pal = &th.palette;
-    let id = Id::new("rename_edit");
+    let id = crate::ids::id("rename_edit");
     let Some(r) = cx.state.rename.as_mut() else {
         return;
     };
-    ui.painter().rect_filled(rect, 3.0, pal.background);
-    ui.painter()
-        .rect_stroke(rect, 3.0, Stroke::new(1.0, pal.accent), StrokeKind::Inside);
+    ui.painter().rect_filled(rect, 3.0, pal.input_background);
+    ui.painter().rect_stroke(
+        rect,
+        3.0,
+        Stroke::new(1.0, pal.input_border_focus),
+        StrokeKind::Inside,
+    );
     let mut edit_ui = ui.new_child(UiBuilder::new().max_rect(rect.shrink2(vec2(4.0, 1.0))));
     let output = TextEdit::singleline(&mut r.text)
         .id(id)
         .frame(eframe::egui::Frame::NONE)
+        .text_color(pal.input_text)
         .desired_width(rect.width() - 8.0)
         .show(&mut edit_ui);
     let response = output.response;
@@ -651,7 +671,14 @@ pub(super) fn rename_box(ui: &mut Ui, cx: &mut Cx<'_>, rect: Rect) {
         state.store(ui.ctx(), id);
         return;
     }
-    let (enter, escape) = ui.input(|i| (i.key_pressed(Key::Enter), i.key_pressed(Key::Escape)));
+    // Consume the keys that end the edit: otherwise the same Enter reaches the hotkeys after the
+    // box lost focus and opens the item that was just named (entering a new folder).
+    let (enter, escape) = ui.input_mut(|i| {
+        (
+            i.consume_key(Modifiers::NONE, Key::Enter),
+            i.consume_key(Modifiers::NONE, Key::Escape),
+        )
+    });
     if escape {
         cx.state.rename = None;
     } else if enter || response.lost_focus() {

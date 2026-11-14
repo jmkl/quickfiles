@@ -1,8 +1,7 @@
 //! Vector icons drawn with the egui painter (toolbar, title bar, sidebar). File and folder icons
 //! in the lists are Nerd Font glyphs, see `fileicon`.
 //! Every icon is authored on a 16x16 grid centred on the given point.
-//! Coloured icons (folder, drives, file badges) take their colours from the palette and
-//! ignore `tint`.
+//! Coloured icons (drives, This PC) take their colours from the palette and ignore `tint`.
 
 use eframe::egui::{Color32, Painter, Pos2, Rect, Shape, Stroke, StrokeKind, vec2};
 
@@ -29,15 +28,9 @@ pub enum Icon {
     Refresh,
     Bookmark,
     Clock,
-    Filter,
     Storage,
     Pin,
     // Coloured glyphs
-    Folder,
-    FileHtml,
-    FileJs,
-    FileJson,
-    FileGeneric,
     Drive,
     DriveWindows,
     ThisPc,
@@ -154,17 +147,6 @@ pub fn paint_scaled(p: &Painter, pal: &Palette, icon: Icon, c: Pos2, tint: Color
             line(&[(0.0, 0.0), (0.0, -3.5)], s);
             line(&[(0.0, 0.0), (2.5, 1.5)], s);
         }
-        Icon::Filter => poly(
-            &[
-                (-6.0, -5.0),
-                (6.0, -5.0),
-                (1.5, 0.0),
-                (1.5, 5.5),
-                (-1.5, 4.0),
-                (-1.5, 0.0),
-            ],
-            s,
-        ),
         Icon::Storage => {
             outline(r4(-7.0, -4.0, 7.0, 5.0), 2.0, s);
             line(&[(-7.0, 0.5), (7.0, 0.5)], s);
@@ -175,47 +157,6 @@ pub fn paint_scaled(p: &Painter, pal: &Palette, icon: Icon, c: Pos2, tint: Color
             line(&[(-3.0, 1.0), (0.0, 7.0), (3.0, 1.0)], s);
         }
 
-        Icon::Folder => {
-            fill(
-                r4(-8.0, -6.0, -1.0, -3.0),
-                1.5,
-                pal.icon_folder.gamma_multiply(0.85),
-            );
-            fill(r4(-8.0, -4.5, 8.0, 6.0), 2.0, pal.icon_folder);
-        }
-        Icon::FileHtml => {
-            fill(r4(-6.0, -8.0, 6.0, 8.0), 1.5, pal.icon_file_html);
-            p.circle_filled(pt(0.0, 1.0), 3.0 * k, pal.accent);
-        }
-        Icon::FileJs => {
-            fill(r4(-8.0, -8.0, 8.0, 8.0), 2.0, pal.icon_file_js);
-            line(
-                &[(-3.5, -3.5), (3.5, -3.5), (-3.5, 3.5), (3.5, 3.5)],
-                Stroke::new(1.3, Color32::WHITE),
-            );
-        }
-        Icon::FileJson => {
-            fill(r4(-8.0, -8.0, 8.0, 8.0), 2.0, pal.icon_file_json);
-            line(
-                &[
-                    (3.0, -3.5),
-                    (-2.0, -3.5),
-                    (-2.0, 0.0),
-                    (2.0, 0.0),
-                    (2.0, 3.5),
-                    (-3.0, 3.5),
-                ],
-                Stroke::new(1.3, pal.icon_file_js),
-            );
-        }
-        Icon::FileGeneric => {
-            fill(r4(-6.0, -8.0, 6.0, 8.0), 1.5, pal.icon_muted);
-            line(
-                &[(-3.0, -2.0), (3.0, -2.0)],
-                Stroke::new(1.0, pal.background),
-            );
-            line(&[(-3.0, 2.0), (3.0, 2.0)], Stroke::new(1.0, pal.background));
-        }
         Icon::Drive => {
             fill(
                 r4(-5.0, -6.0, 5.0, -2.0),

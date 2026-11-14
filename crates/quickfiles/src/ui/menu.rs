@@ -4,9 +4,7 @@
 
 use std::time::Duration;
 
-use eframe::egui::{
-    Color32, Id, Key, LayerId, Order, Pos2, Rect, Stroke, StrokeKind, Ui, pos2, vec2,
-};
+use eframe::egui::{Color32, Key, LayerId, Order, Pos2, Rect, Stroke, StrokeKind, Ui, pos2, vec2};
 
 use super::{Action, Cx, widgets::text_left};
 
@@ -106,7 +104,7 @@ pub fn show(ui: &mut Ui, cx: &mut Cx<'_>, full: Rect) {
             .max(full.top() + 4.0),
     );
     let rect = Rect::from_min_size(min, size);
-    let p = ctx.layer_painter(LayerId::new(Order::Foreground, Id::new("qf_menu")));
+    let p = ctx.layer_painter(LayerId::new(Order::Foreground, crate::ids::id("qf_menu")));
 
     p.rect_filled(
         rect.translate(vec2(0.0, 3.0)).expand(1.0),
@@ -205,7 +203,7 @@ pub fn toast(ui: &mut Ui, cx: &mut Cx<'_>, full: Rect) {
     let alpha = ((SHOW - age) / 0.5).clamp(0.0, 1.0);
     let th = cx.theme;
     let pal = &th.palette;
-    let p = ctx.layer_painter(LayerId::new(Order::Tooltip, Id::new("qf_toast")));
+    let p = ctx.layer_painter(LayerId::new(Order::Tooltip, crate::ids::id("qf_toast")));
     let g = super::widgets::galley(&p, &text, &th.font, pal.text, full.width() - 120.0);
     let size = g.size() + vec2(32.0, 18.0);
     let rect = Rect::from_center_size(pos2(full.center().x, full.bottom() - 34.0), size);

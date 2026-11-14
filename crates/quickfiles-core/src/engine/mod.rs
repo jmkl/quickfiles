@@ -40,11 +40,19 @@ pub const EAGER_MAX: usize = 20_000;
 
 const BEAT: Duration = Duration::from_secs(1);
 const BACKOFF: Duration = Duration::from_secs(1);
+/// After a local change (new folder, rename) a browse is listed from disk for this long, until
+/// the index has caught up.
+const FS_WINDOW: Duration = Duration::from_secs(5);
 
 pub(crate) enum Command {
-    Open { shared: Arc<Shared>, query: Query },
-    Want(u64),
+    Open {
+        shared: Arc<Shared>,
+        query: Query,
+    },
+    Want,
     Refresh(u64),
+    /// Refresh now from the file system: the index has not heard about a change we just made.
+    RefreshFs(u64),
     Retry,
     Launch,
     Stop,
@@ -145,6 +153,8 @@ struct Engine {
     ready: bool,
     last_beat: Instant,
     backoff_until: Option<Instant>,
+    /// Browses are read from disk until then (see [`FS_WINDOW`]).
+    fs_until: Option<Instant>,
 }
 
 pub(crate) fn spawn(
@@ -164,6 +174,7 @@ pub(crate) fn spawn(
                 ready: false,
                 last_beat: Instant::now(),
                 backoff_until: None,
+                fs_until: None,
             };
             run(engine, rx);
         })
@@ -208,7 +219,14 @@ fn run(mut e: Engine, rx: Receiver<Command>) {
                         refresh = true;
                     }
                 }
-                Command::Want(_) => {} // the range lives in the view; next_work reads it
+                Command::RefreshFs(id) => {
+                    let is_current = e.current.as_ref().is_some_and(|c| c.shared.id == id);
+                    if is_current && open.is_none() {
+                        refresh = true;
+                        e.fs_until = Some(Instant::now() + FS_WINDOW);
+                    }
+                }
+                Command::Want => {} // the range lives in the view; next_work reads it
                 Command::Retry => retry = true,
                 Command::Launch => launch = true,
                 Command::Stop => return,
@@ -359,6 +377,22 @@ impl Engine {
 
     fn load(&mut self, shared: &Arc<Shared>, plan: &Plan) {
         let t0 = Instant::now();
+        // Just after a local change the index is stale: list a plain folder from disk.
+        if self.fs_until.is_some_and(|t| Instant::now() < t) {
+            if let Some(dir) = plan.children_of.as_ref() {
+                let [folders, files] = list_dir(dir, plan, &mut self.builder);
+                if !folders.is_empty() || !files.is_empty() {
+                    let (layout, got) = fs_pages(folders, files);
+                    let mut g = shared.lock();
+                    g.replace(layout, got, ViewState::Ready);
+                    g.took_us = t0.elapsed().as_micros() as u64;
+                    drop(g);
+                    self.backoff_until = None;
+                    self.wake();
+                    return;
+                }
+            }
+        }
         let mut counts = [0u32; MAX_SEGS];
         let mut got: Vec<(PageId, Vec<Entry>)> = Vec::new();
 
@@ -410,23 +444,7 @@ impl Engine {
                 if let Some(dir) = plan.children_of.as_ref() {
                     let [folders, files] = list_dir(dir, plan, &mut self.builder);
                     if !folders.is_empty() || !files.is_empty() {
-                        layout = Layout::new([folders.len() as u32, files.len() as u32]);
-                        got.clear();
-                        for (seg, mut rows) in [folders, files].into_iter().enumerate() {
-                            let mut idx = 0;
-                            while !rows.is_empty() {
-                                let rest = rows.split_off(rows.len().min(PAGE as usize));
-                                got.push((
-                                    PageId {
-                                        seg: seg as u8,
-                                        idx,
-                                    },
-                                    rows,
-                                ));
-                                rows = rest;
-                                idx += 1;
-                            }
-                        }
+                        (layout, got) = fs_pages(folders, files);
                         state = ViewState::Ready;
                     }
                 }
@@ -585,6 +603,28 @@ impl Engine {
     }
 }
 
+/// Pages for a folder listed from disk: folders first, then files, `PAGE` rows each.
+fn fs_pages(folders: Vec<Entry>, files: Vec<Entry>) -> (Layout, Vec<(PageId, Vec<Entry>)>) {
+    let layout = Layout::new([folders.len() as u32, files.len() as u32]);
+    let mut got = Vec::new();
+    for (seg, mut rows) in [folders, files].into_iter().enumerate() {
+        let mut idx = 0;
+        while !rows.is_empty() {
+            let rest = rows.split_off(rows.len().min(PAGE as usize));
+            got.push((
+                PageId {
+                    seg: seg as u8,
+                    idx,
+                },
+                rows,
+            ));
+            rows = rest;
+            idx += 1;
+        }
+    }
+    (layout, got)
+}
+
 /// Rows of `dir` read straight from the file system: `[folders, files]`, sorted like the plan.
 /// Used when Everything has no data for a folder (it is not indexed). Hidden items follow
 /// `plan.show_hidden`. Sorting by Type falls back to name.
@@ -736,7 +776,7 @@ mod tests {
         assert_eq!(shared.lock().layout.total(), 3000);
         // Ask for a far page; the engine must fetch it.
         shared.lock().wanted = 2000..2030;
-        tx.send(Command::Want(1)).unwrap();
+        tx.send(Command::Want).unwrap();
         wait(|| {
             let g = shared.lock();
             let (id, _) = g.layout.locate(2010).unwrap();
@@ -774,7 +814,7 @@ mod tests {
             let n = g.layout.total();
             drop(g);
             shared.lock().wanted = 0..n.min(30);
-            tx.send(Command::Want(3)).unwrap();
+            tx.send(Command::Want).unwrap();
             wait(|| {
                 let g = shared.lock();
                 g.pages.len() >= g.layout.page_count()

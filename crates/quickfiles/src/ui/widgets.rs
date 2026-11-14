@@ -2,7 +2,7 @@
 use std::{fmt::Debug, hash::Hash, sync::Arc};
 
 use eframe::egui::{
-    Color32, Context, FontId, Galley, Id, Painter, Pos2, Rect, Response, Sense, Ui, Vec2, pos2,
+    Color32, Context, FontId, Galley, Painter, Pos2, Rect, Response, Sense, Ui, Vec2, pos2,
     text::LayoutJob, vec2,
 };
 
@@ -30,12 +30,12 @@ pub fn vline(p: &Painter, x: f32, y0: f32, y1: f32, color: Color32) {
 /// While a menu is open the rest of the UI must not react to clicks (see `ui::draw`).
 pub fn modal(ui: &Ui) -> bool {
     ui.ctx()
-        .data(|d| d.get_temp::<bool>(Id::new("qf_modal")))
+        .data(|d| d.get_temp::<bool>(crate::ids::id("qf_modal")))
         .unwrap_or(false)
 }
 
 pub fn set_modal(ctx: &Context, on: bool) {
-    ctx.data_mut(|d| d.insert_temp(Id::new("qf_modal"), on));
+    ctx.data_mut(|d| d.insert_temp(crate::ids::id("qf_modal"), on));
 }
 
 /// `Sense::click()`, or hover-only while a menu is open.
@@ -62,7 +62,7 @@ pub fn hit(ui: &Ui, rect: Rect, salt: impl Hash + Debug, sense: Sense) -> Respon
     } else {
         sense
     };
-    ui.interact(rect, ui.id().with(salt), sense)
+    ui.interact(rect, ui.scope_id().with(salt), sense)
 }
 
 /// Single-line galley that ends with "…" instead of overflowing `max_w`.
@@ -142,4 +142,11 @@ pub fn icon_button(
 /// Default footprint of a toolbar icon button.
 pub fn btn_size() -> Vec2 {
     vec2(28.0, 24.0)
+}
+
+/// Scroll sources that move with the wheel and scrollbar but not by dragging the content, so a
+/// drag on empty space can draw the selection band instead.
+pub fn scroll_no_drag() -> eframe::egui::containers::scroll_area::ScrollSource {
+    use eframe::egui::containers::scroll_area::ScrollSource;
+    ScrollSource::SCROLL_BAR | ScrollSource::MOUSE_WHEEL
 }

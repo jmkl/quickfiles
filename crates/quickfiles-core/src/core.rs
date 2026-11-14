@@ -529,10 +529,17 @@ impl Core {
         sys::reveal(path).map_err(CoreError)
     }
 
+    /// The index (Everything) needs a moment to see a new or renamed item: show it from disk now,
+    /// then look at the index again a few times.
+    fn refresh_after_local_change(&self) {
+        (self.refresher())();
+    }
+
     fn refresher(&self) -> impl FnOnce() + Send + 'static {
         let (tx, id) = (self.tx.clone(), self.current_id.clone());
         move || {
-            let _ = tx.send(Command::Refresh(id.load(Ordering::Relaxed)));
+            // The index has not heard of the change yet: list the folder from disk right away.
+            let _ = tx.send(Command::RefreshFs(id.load(Ordering::Relaxed)));
             // The file index (Everything) learns about a big delete or copy a little later, so a
             // single refresh can still list the old content. Look again a few times.
             thread::spawn(move || {
@@ -653,7 +660,7 @@ impl Core {
 
     pub fn rename(&self, path: &Path, new_name: &str) -> Result<PathBuf, CoreError> {
         let target = jobs::rename(path, new_name)?;
-        self.view.refresh();
+        self.refresh_after_local_change();
         Ok(target)
     }
 
@@ -664,7 +671,18 @@ impl Core {
             .filter(|p| !p.as_os_str().is_empty())
             .ok_or_else(|| CoreError("open a folder first".into()))?;
         let p = jobs::new_folder(dir)?;
-        self.view.refresh();
+        self.refresh_after_local_change();
+        Ok(p)
+    }
+
+    pub fn new_file(&self) -> Result<PathBuf, CoreError> {
+        let dir = self
+            .nav
+            .location()
+            .filter(|p| !p.as_os_str().is_empty())
+            .ok_or_else(|| CoreError("open a folder first".into()))?;
+        let p = jobs::new_file(dir)?;
+        self.refresh_after_local_change();
         Ok(p)
     }
 
